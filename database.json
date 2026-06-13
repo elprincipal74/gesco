@@ -1,0 +1,251 @@
+{
+  "users": [
+    {
+      "id": "dipendente-1",
+      "name": "Mario Rossi",
+      "email": "mario.rossi@azienda.it",
+      "role": "Dipendente",
+      "holidayBalance": {
+        "totalDays": 30,
+        "takenDays": 0,
+        "plannedDays": 0,
+        "remainingDays": 30
+      },
+      "phone": "",
+      "address": "",
+      "iban": ""
+    },
+    {
+      "id": "dipendente-2",
+      "name": "Luigi Bianchi",
+      "email": "luigi.bianchi@azienda.it",
+      "role": "Dipendente",
+      "holidayBalance": {
+        "totalDays": 30,
+        "takenDays": 0,
+        "plannedDays": 0,
+        "remainingDays": 30
+      }
+    },
+    {
+      "id": "dipendente-3",
+      "name": "Giuseppe Verdi",
+      "email": "giuseppe.verdi@azienda.it",
+      "role": "Dipendente",
+      "holidayBalance": {
+        "totalDays": 30,
+        "takenDays": 0,
+        "plannedDays": 0,
+        "remainingDays": 30
+      }
+    },
+    {
+      "id": "dipendente-4",
+      "name": "Anna Neri",
+      "email": "anna.neri@azienda.it",
+      "role": "Dipendente",
+      "holidayBalance": {
+        "totalDays": 30,
+        "takenDays": 0,
+        "plannedDays": 0,
+        "remainingDays": 30
+      }
+    },
+    {
+      "id": "admin-1",
+      "name": "Admin User",
+      "email": "admin@azienda.it",
+      "role": "Admin",
+      "holidayBalance": null
+    },
+    {
+      "id": "hr-1",
+      "name": "HR User",
+      "email": "hr@azienda.it",
+      "role": "HR",
+      "holidayBalance": null
+    }
+  ],
+  "holidayRequests": [
+    {
+      "id": "req-1781364947076",
+      "userId": "dipendente-1",
+      "userName": "Mario Rossi",
+      "startDate": "2026-06-16",
+      "endDate": "2026-06-17",
+      "type": "Malattia",
+      "attachmentName": "",
+      "attachmentData": "",
+      "status": "Approvata",
+      "rejectionReason": "",
+      "createdAt": "2026-06-13T15:35:47.076Z"
+    },
+    {
+      "id": "req-1781365237608",
+      "userId": "dipendente-1",
+      "userName": "Mario Rossi",
+      "startDate": "2026-06-23",
+      "endDate": "2026-06-24",
+      "type": "Ferie",
+      "attachmentName": "",
+      "attachmentData": "",
+      "status": "Rifiutata",
+      "rejectionReason": "Devi lavorà",
+      "createdAt": "2026-06-13T15:40:37.608Z",
+      "approvedBy": "Admin User (Admin)"
+    },
+    {
+      "id": "req-1781365573787",
+      "userId": "dipendente-1",
+      "userName": "Mario Rossi",
+      "startDate": "2026-07-20",
+      "endDate": "2026-07-24",
+      "type": "Ferie",
+      "attachmentName": "",
+      "attachmentData": "",
+      "status": "Rifiutata",
+      "rejectionReason": "troppe ferie",
+      "createdAt": "2026-06-13T15:46:13.787Z",
+      "approvedBy": "Admin User (Admin)"
+    }
+  ],
+  "notifications": [
+    {
+      "id": "notif-1",
+      "userId": "dipendente-3",
+      "message": "La tua richiesta di ferie dal 12/08/2026 al 18/08/2026 è stata approvata.",
+      "read": false,
+      "createdAt": "2026-06-10T10:00:00.000Z"
+    },
+    {
+      "id": "notif-2",
+      "userId": "dipendente-4",
+      "message": "La tua richiesta di ferie dal 12/08/2026 al 18/08/2026 è stata approvata.",
+      "read": true,
+      "createdAt": "2026-06-11T11:15:00.000Z"
+    },
+    {
+      "id": "notif-1781339468003",
+      "userId": "dipendente-1",
+      "message": "La tua richiesta di ferie dal 10/08/2026 al 24/08/2026 è stata approvata.",
+      "read": true,
+      "createdAt": "2026-06-13T08:31:08.003Z"
+    },
+    {
+      "id": "notif-1781339470255",
+      "userId": "dipendente-2",
+      "message": "La tua richiesta di ferie dal 15/08/2026 al 20/08/2026 è stata approvata.",
+      "read": false,
+      "createdAt": "2026-06-13T08:31:10.256Z"
+    },
+    {
+      "id": "notif-1781359109444-admin",
+      "userId": "admin-1",
+      "message": "Il dipendente Mario Rossi ha annullato la richiesta di ferie precedentemente approvata dal 01/03/2026 al 10/03/2026.",
+      "read": true,
+      "createdAt": "2026-06-13T13:58:29.444Z"
+    },
+    {
+      "id": "notif-1781359109444-hr",
+      "userId": "hr-1",
+      "message": "Il dipendente Mario Rossi ha annullato la richiesta di ferie precedentemente approvata dal 01/03/2026 al 10/03/2026.",
+      "read": true,
+      "createdAt": "2026-06-13T13:58:29.444Z"
+    },
+    {
+      "id": "notif-1781359139055-admin",
+      "userId": "admin-1",
+      "message": "Il dipendente Mario Rossi ha annullato la richiesta di ferie precedentemente approvata dal 10/08/2026 al 24/08/2026.",
+      "read": true,
+      "createdAt": "2026-06-13T13:58:59.055Z"
+    },
+    {
+      "id": "notif-1781359139055-hr",
+      "userId": "hr-1",
+      "message": "Il dipendente Mario Rossi ha annullato la richiesta di ferie precedentemente approvata dal 10/08/2026 al 24/08/2026.",
+      "read": true,
+      "createdAt": "2026-06-13T13:58:59.055Z"
+    },
+    {
+      "id": "notif-1781359182074-admin",
+      "userId": "admin-1",
+      "message": "Il dipendente Luigi Bianchi ha annullato la richiesta di ferie precedentemente approvata dal 10/04/2026 al 14/04/2026.",
+      "read": true,
+      "createdAt": "2026-06-13T13:59:42.074Z"
+    },
+    {
+      "id": "notif-1781359182074-hr",
+      "userId": "hr-1",
+      "message": "Il dipendente Luigi Bianchi ha annullato la richiesta di ferie precedentemente approvata dal 10/04/2026 al 14/04/2026.",
+      "read": true,
+      "createdAt": "2026-06-13T13:59:42.074Z"
+    },
+    {
+      "id": "notif-1781359184208-admin",
+      "userId": "admin-1",
+      "message": "Il dipendente Luigi Bianchi ha annullato la richiesta di ferie precedentemente approvata dal 15/08/2026 al 20/08/2026.",
+      "read": true,
+      "createdAt": "2026-06-13T13:59:44.208Z"
+    },
+    {
+      "id": "notif-1781359184208-hr",
+      "userId": "hr-1",
+      "message": "Il dipendente Luigi Bianchi ha annullato la richiesta di ferie precedentemente approvata dal 15/08/2026 al 20/08/2026.",
+      "read": true,
+      "createdAt": "2026-06-13T13:59:44.208Z"
+    },
+    {
+      "id": "notif-1781359190617-admin",
+      "userId": "admin-1",
+      "message": "Il dipendente Giuseppe Verdi ha annullato la richiesta di ferie precedentemente approvata dal 12/08/2026 al 18/08/2026.",
+      "read": true,
+      "createdAt": "2026-06-13T13:59:50.617Z"
+    },
+    {
+      "id": "notif-1781359190617-hr",
+      "userId": "hr-1",
+      "message": "Il dipendente Giuseppe Verdi ha annullato la richiesta di ferie precedentemente approvata dal 12/08/2026 al 18/08/2026.",
+      "read": true,
+      "createdAt": "2026-06-13T13:59:50.617Z"
+    },
+    {
+      "id": "notif-1781359196009-admin",
+      "userId": "admin-1",
+      "message": "Il dipendente Anna Neri ha annullato la richiesta di ferie precedentemente approvata dal 12/08/2026 al 18/08/2026.",
+      "read": true,
+      "createdAt": "2026-06-13T13:59:56.009Z"
+    },
+    {
+      "id": "notif-1781359196009-hr",
+      "userId": "hr-1",
+      "message": "Il dipendente Anna Neri ha annullato la richiesta di ferie precedentemente approvata dal 12/08/2026 al 18/08/2026.",
+      "read": true,
+      "createdAt": "2026-06-13T13:59:56.009Z"
+    },
+    {
+      "id": "notif-1781364974521",
+      "userId": "dipendente-1",
+      "message": "La tua richiesta di ferie dal 16/06/2026 al 17/06/2026 è stata approvata.",
+      "read": false,
+      "createdAt": "2026-06-13T15:36:14.521Z"
+    },
+    {
+      "id": "notif-1781365266630",
+      "userId": "dipendente-1",
+      "message": "La tua richiesta di ferie dal 23/06/2026 al 24/06/2026 è stata rifiutata da Admin User (Admin). Motivazione: Devi lavorà",
+      "read": false,
+      "createdAt": "2026-06-13T15:41:06.630Z"
+    },
+    {
+      "id": "notif-1781365850645",
+      "userId": "dipendente-1",
+      "message": "La tua richiesta di ferie dal 20/07/2026 al 24/07/2026 è stata rifiutata da Admin User (Admin). Motivazione: troppe ferie",
+      "read": false,
+      "createdAt": "2026-06-13T15:50:50.645Z"
+    }
+  ],
+  "settings": {
+    "annualHolidayDays": 30,
+    "maxStudyLeaveDays": 3
+  }
+}
