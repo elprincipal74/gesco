@@ -22,6 +22,8 @@ import {
   FileCheck,
   LogOut,
   ChevronDown,
+  Megaphone,
+  Send,
   Settings as SettingsIcon
 } from 'lucide-react';
 import { jsPDF } from 'jspdf';
@@ -157,6 +159,12 @@ export default function App() {
   const [requests, setRequests] = useState([]);
   const [notifications, setNotifications] = useState([]);
   const [settings, setSettings] = useState({ annualHolidayDays: 26, maxStudyLeaveDays: 5 });
+  
+  // Communications State
+  const [communications, setCommunications] = useState([]);
+  const [commsMessage, setCommsMessage] = useState('');
+  const [expandedCommId, setExpandedCommId] = useState(null);
+  const [commsSubmitting, setCommsSubmitting] = useState(false);
   
   const [currentUser, setCurrentUser] = useState(() => {
     try {
@@ -455,6 +463,27 @@ export default function App() {
     return () => clearInterval(interval);
   }, [currentUser]);
 
+  // Fetch communications history and confirmations (Admin/HR only)
+  const fetchCommunications = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/communications`);
+      if (res.ok) {
+        const data = await res.json();
+        setCommunications(data);
+      }
+    } catch (err) {
+      console.error("Error fetching communications:", err);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === 'communications' && currentUser && (currentUser.role === 'Admin' || currentUser.role === 'HR')) {
+      fetchCommunications();
+      const interval = setInterval(fetchCommunications, 8000);
+      return () => clearInterval(interval);
+    }
+  }, [activeTab, currentUser]);
+
   // handleRoleChange removed, using direct login workflow instead
 
   // Reset interactive date picker selection
@@ -685,9 +714,47 @@ export default function App() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userId: currentUser.id })
       });
-      setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+      setNotifications(prev => prev.map(n => n.isCommunication ? n : { ...n, read: true }));
     } catch (err) {
       console.error(err);
+    }
+  };
+
+  // Send communication API handler (Admin/HR only)
+  const handleSendCommunication = async (e) => {
+    e.preventDefault();
+    if (!commsMessage.trim()) {
+      addToast("Inserisci un messaggio per la comunicazione", "error");
+      return;
+    }
+    if (commsMessage.length > 500) {
+      addToast("Il messaggio non può superare i 500 caratteri", "error");
+      return;
+    }
+    
+    setCommsSubmitting(true);
+    try {
+      const res = await fetch(`${API_BASE}/communications`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ senderId: currentUser.id, message: commsMessage })
+      });
+      
+      const data = await res.json();
+      if (!res.ok) {
+        addToast(data.error || "Errore nell'invio della comunicazione", "error");
+        setCommsSubmitting(false);
+        return;
+      }
+      
+      addToast("Comunicazione inviata con successo", "success");
+      setCommsMessage('');
+      fetchCommunications();
+    } catch (err) {
+      console.error(err);
+      addToast("Errore di connessione con il server", "error");
+    } finally {
+      setCommsSubmitting(false);
     }
   };
 
@@ -1050,6 +1117,14 @@ export default function App() {
                 <SettingsIcon className="nav-item-icon" />
                 <span>Impostazioni</span>
               </div>
+              
+              <div 
+                className={`nav-item ${activeTab === 'communications' ? 'active' : ''}`}
+                onClick={() => { setActiveTab('communications'); resetSelection(); }}
+              >
+                <Megaphone className="nav-item-icon" />
+                <span>Comunicazioni</span>
+              </div>
             </>
           )}
         </nav>
@@ -1078,6 +1153,7 @@ export default function App() {
             {activeTab === 'coverage' && 'Prospetto Generale Copertura'}
             {activeTab === 'reports' && 'Cruscotto Reportistica'}
             {activeTab === 'profile' && 'I Miei Dati Personali'}
+            {activeTab === 'communications' && 'Comunicazioni e Avvisi'}
           </h1>
           
           <div className="header-actions">
@@ -1108,10 +1184,70 @@ export default function App() {
                         <div className="notification-empty-state">Nessuna notifica presente</div>
                       ) : (
                         notifications.map(n => (
-                          <div key={n.id} className={`notification-item-card ${n.read ? 'read' : ''}`}>
-                            <div>{n.message}</div>
-                            <div className="notification-item-time">
-                              {new Date(n.createdAt).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })}
+                          <div 
+                            key={n.id} 
+                            className={`notification-item-card ${n.read ? 'read' : ''} ${n.isCommunication ? 'communication-notif' : ''}`}
+                            style={n.isCommunication ? { borderLeftColor: 'var(--color-secondary)' } : {}}
+                          >
+                            {n.isCommunication && (
+                              <div className="communication-badge-label" style={{ fontSize: '0.65rem', color: 'var(--color-secondary)', fontWeight: '700', textTransform: 'uppercase', marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                <Megaphone size={10} />
+                                Comunicazione Ufficiale
+                              </div>
+                            )}
+                            <div style={{ fontWeight: n.isCommunication && !n.read ? '600' : 'normal' }}>{n.message}</div>
+                            
+                            {n.isCommunication && !n.read && (
+                              <button
+                                className="btn btn-primary"
+                                style={{ 
+                                  marginTop: '8px', 
+                                  padding: '4px 10px', 
+                                  fontSize: '0.7rem', 
+                                  height: '24px',
+                                  width: 'auto',
+                                  backgroundColor: 'var(--color-secondary)',
+                                  boxShadow: 'none',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  gap: '4px'
+                                }}
+                                onClick={async (e) => {
+                                  e.stopPropagation();
+                                  try {
+                                    const res = await fetch(`${API_BASE}/notifications/${n.id}/read`, {
+                                      method: 'POST'
+                                    });
+                                    if (res.ok) {
+                                      // Update local state
+                                      setNotifications(prev => prev.map(item => item.id === n.id ? { ...item, read: true, readAt: new Date().toISOString() } : item));
+                                      addToast("Lettura confermata con successo", "success");
+                                    }
+                                  } catch (err) {
+                                    console.error("Error confirming read:", err);
+                                    addToast("Errore durante la conferma di lettura", "error");
+                                  }
+                                }}
+                              >
+                                <CheckCircle size={10} />
+                                Conferma Lettura
+                              </button>
+                            )}
+                            
+                            {n.isCommunication && n.read && (
+                              <div style={{ fontSize: '0.7rem', color: 'var(--color-success)', marginTop: '6px', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                <CheckCircle size={10} /> Letto
+                                {n.readAt && (
+                                  <span style={{ color: 'var(--text-muted)', fontSize: '0.65rem', fontWeight: '400' }}>
+                                    ({new Date(n.readAt).toLocaleString('it-IT', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })})
+                                  </span>
+                                )}
+                              </div>
+                            )}
+                            
+                            <div className="notification-item-time" style={{ marginTop: '6px' }}>
+                              {new Date(n.createdAt).toLocaleDateString('it-IT')} {new Date(n.createdAt).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })}
                             </div>
                           </div>
                         ))
@@ -1192,6 +1328,13 @@ export default function App() {
                         >
                           <SettingsIcon size={14} />
                           <span>Impostazioni</span>
+                        </button>
+                        <button 
+                          className={`profile-dropdown-item ${activeTab === 'communications' ? 'active' : ''}`}
+                          onClick={() => { setActiveTab('communications'); setShowProfileDropdown(false); }}
+                        >
+                          <Megaphone size={14} />
+                          <span>Comunicazioni</span>
                         </button>
                       </>
                     )}
@@ -1866,6 +2009,191 @@ export default function App() {
             </div>
           )}
 
+          {/* TAB 7: COMUNICAZIONI E AVVISI (HR/ADMIN) */}
+          {activeTab === 'communications' && currentUser && (currentUser.role === 'Admin' || currentUser.role === 'HR') && (
+            <div className="communications-tab-container" style={{ display: 'flex', flexDirection: 'column', gap: '30px' }}>
+              
+              {/* Send Communication Form */}
+              <div className="glass-card">
+                <div className="card-header">
+                  <h3 className="card-title" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <Megaphone size={18} style={{ color: 'var(--color-secondary)' }} />
+                    Invia Nuova Comunicazione di Servizio
+                  </h3>
+                </div>
+                <div className="card-body" style={{ padding: '20px' }}>
+                  <form onSubmit={handleSendCommunication}>
+                    <div className="form-group" style={{ marginBottom: '15px' }}>
+                      <label className="form-label">Testo del Messaggio (Massimo 500 caratteri)</label>
+                      <textarea
+                        className="form-input"
+                        style={{ width: '100%', minHeight: '120px', resize: 'vertical', fontFamily: 'inherit', padding: '12px' }}
+                        placeholder="Scrivi qui la comunicazione per tutti i collaboratori..."
+                        value={commsMessage}
+                        onChange={(e) => setCommsMessage(e.target.value.slice(0, 500))}
+                        required
+                      />
+                      
+                      {/* Character Counter with Warning colors */}
+                      <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '6px', fontSize: '0.8rem' }}>
+                        <span style={{ 
+                          fontWeight: '600',
+                          color: commsMessage.length >= 480 ? 'var(--color-danger)' : 
+                                 commsMessage.length >= 400 ? 'var(--color-warning)' : 
+                                 'var(--text-secondary)'
+                        }}>
+                          {commsMessage.length} / 500 caratteri
+                        </span>
+                      </div>
+                    </div>
+
+                    <button 
+                      type="submit" 
+                      className={`btn btn-primary ${(!commsMessage.trim() || commsSubmitting) ? 'btn-disabled' : ''}`}
+                      disabled={!commsMessage.trim() || commsSubmitting}
+                      style={{ height: '42px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', backgroundColor: 'var(--color-secondary)', borderColor: 'var(--color-secondary)' }}
+                    >
+                      {commsSubmitting ? <RefreshCw size={16} className="animate-spin" /> : <Send size={16} />}
+                      Invia Comunicazione a Tutti
+                    </button>
+                  </form>
+                </div>
+              </div>
+
+              {/* Communications History */}
+              <div className="glass-card">
+                <div className="card-header">
+                  <h3 className="card-title">Storico Comunicazioni Inviate</h3>
+                </div>
+                <div className="card-body" style={{ padding: '20px' }}>
+                  {communications.length === 0 ? (
+                    <div style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '40px 0' }}>
+                      Nessuna comunicazione inviata in precedenza.
+                    </div>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                      {communications.map(comm => {
+                        const totalRecipients = comm.recipients.length;
+                        const readRecipients = comm.recipients.filter(r => r.read).length;
+                        const readPct = totalRecipients > 0 ? (readRecipients / totalRecipients) * 100 : 0;
+                        const isExpanded = expandedCommId === comm.communicationId;
+                        
+                        return (
+                          <div 
+                            key={comm.communicationId} 
+                            style={{ 
+                              border: '1px solid var(--border-color)', 
+                              borderRadius: 'var(--radius-md)', 
+                              backgroundColor: 'rgba(255, 255, 255, 0.01)',
+                              overflow: 'hidden'
+                            }}
+                          >
+                            <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                              
+                              {/* Header: Sender and Date */}
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
+                                <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                                  Inviata da: <strong style={{ color: 'var(--text-primary)' }}>{comm.senderName}</strong>
+                                </span>
+                                <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                                  {new Date(comm.createdAt).toLocaleDateString('it-IT')} alle {new Date(comm.createdAt).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })}
+                                </span>
+                              </div>
+                              
+                              {/* Message body */}
+                              <div style={{ fontSize: '0.95rem', lineHeight: '1.5', whiteSpace: 'pre-wrap', color: 'var(--text-primary)', borderLeft: '3px solid var(--color-secondary)', paddingLeft: '12px' }}>
+                                {comm.message}
+                              </div>
+
+                              {/* Progress metrics and buttons */}
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '15px', marginTop: '4px', borderTop: '1px solid rgba(255,255,255,0.03)', paddingTop: '12px' }}>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', flexGrow: 1, maxWidth: '300px' }}>
+                                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', fontWeight: '600' }}>
+                                    <span>Conferme di Lettura</span>
+                                    <span style={{ color: 'var(--color-success)' }}>{readRecipients} di {totalRecipients} ({Math.round(readPct)}%)</span>
+                                  </div>
+                                  <div style={{ height: '6px', borderRadius: '3px', backgroundColor: 'rgba(255,255,255,0.05)', overflow: 'hidden' }}>
+                                    <div style={{ height: '100%', width: `${readPct}%`, backgroundColor: 'var(--color-success)', borderRadius: '3px', transition: 'width 0.5s ease' }}></div>
+                                  </div>
+                                </div>
+                                
+                                <button
+                                  type="button"
+                                  className="btn btn-secondary btn-sm"
+                                  style={{ padding: '6px 12px', fontSize: '0.8rem' }}
+                                  onClick={() => setExpandedCommId(isExpanded ? null : comm.communicationId)}
+                                >
+                                  {isExpanded ? "Nascondi Lettori" : "Vedi Stato Letture"}
+                                </button>
+                              </div>
+
+                            </div>
+
+                            {/* Expanded recipients status table */}
+                            {isExpanded && (
+                              <div style={{ backgroundColor: 'rgba(0, 0, 0, 0.2)', borderTop: '1px solid var(--border-color)', padding: '16px' }}>
+                                <h4 style={{ margin: '0 0 12px 0', fontSize: '0.85rem', fontWeight: '700', textTransform: 'uppercase', color: 'var(--text-secondary)', letterSpacing: '0.05em' }}>
+                                  Stato Dettagliato Destinatari
+                                </h4>
+                                {comm.recipients.length === 0 ? (
+                                  <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Nessun destinatario registrato.</div>
+                                ) : (
+                                  <div className="custom-table-container" style={{ maxHeight: '200px', overflowY: 'auto' }}>
+                                    <table className="custom-table" style={{ width: '100%' }}>
+                                      <thead>
+                                        <tr>
+                                          <th style={{ padding: '8px 12px', fontSize: '0.7rem' }}>Collaboratore</th>
+                                          <th style={{ padding: '8px 12px', fontSize: '0.7rem' }}>Ruolo</th>
+                                          <th style={{ padding: '8px 12px', fontSize: '0.7rem' }}>Stato Lettura</th>
+                                          <th style={{ padding: '8px 12px', fontSize: '0.7rem', textAlign: 'right' }}>Data Lettura</th>
+                                        </tr>
+                                      </thead>
+                                      <tbody>
+                                        {comm.recipients.map(rec => (
+                                          <tr key={rec.userId}>
+                                            <td style={{ padding: '8px 12px', fontSize: '0.8rem', fontWeight: '600' }}>{rec.userName}</td>
+                                            <td style={{ padding: '8px 12px', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>{rec.userRole}</td>
+                                            <td style={{ padding: '8px 12px', fontSize: '0.8rem' }}>
+                                              <span 
+                                                className={`badge`} 
+                                                style={{ 
+                                                  padding: '2px 8px', 
+                                                  fontSize: '0.7rem',
+                                                  backgroundColor: rec.read ? 'var(--color-success-bg)' : 'var(--color-danger-bg)',
+                                                  color: rec.read ? 'var(--color-success)' : 'var(--color-danger)',
+                                                  border: rec.read ? '1px solid rgba(16,185,129,0.2)' : '1px solid rgba(244,63,94,0.2)'
+                                                }}
+                                              >
+                                                {rec.read ? "Letto" : "Non letto"}
+                                              </span>
+                                            </td>
+                                            <td style={{ padding: '8px 12px', fontSize: '0.8rem', color: 'var(--text-muted)', textAlign: 'right' }}>
+                                              {rec.readAt ? (
+                                                new Date(rec.readAt).toLocaleString('it-IT', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+                                              ) : (
+                                                "—"
+                                              )}
+                                            </td>
+                                          </tr>
+                                        ))}
+                                      </tbody>
+                                    </table>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+            </div>
+          )}
+
           {/* TAB 5: PERSONAL PROFILE DETAILS */}
           {activeTab === 'profile' && currentUser && (
             <div className="profile-page-container">
@@ -2127,6 +2455,82 @@ export default function App() {
         </div>
       )}
 
+      {/* MODAL BLOCCANTE: NUOVA COMUNICAZIONE DA LEGGERE (CONFERMA DI LETTURA OBBLIGATORIA) */}
+      {currentUser && notifications.filter(n => n.isCommunication && !n.read).length > 0 && (() => {
+        const unreadComms = notifications.filter(n => n.isCommunication && !n.read);
+        const currentComm = unreadComms[unreadComms.length - 1]; // Mostra la più recente per prima
+        return (
+          <div className="modal-backdrop" style={{ zIndex: 9999 }}>
+            <div className="modal-window" style={{ maxWidth: '500px', border: '2px solid var(--color-secondary)', boxShadow: '0 0 30px rgba(14, 165, 233, 0.25)' }}>
+              <div className="modal-header" style={{ borderBottom: '1px solid var(--border-color)', padding: '20px 24px', backgroundColor: 'rgba(14, 165, 233, 0.05)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <Megaphone size={22} style={{ color: 'var(--color-secondary)' }} />
+                  <h3 style={{ fontSize: '1.2rem', fontWeight: '800', margin: 0, color: '#e2e8f0' }}>Comunicazione Importante</h3>
+                </div>
+              </div>
+              
+              <div className="modal-body" style={{ padding: '24px', backgroundColor: 'var(--bg-sidebar)' }}>
+                {/* Dettagli mittente */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '16px', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                  <span>Da: <strong>{currentComm.senderName || 'Amministrazione'}</strong></span>
+                  <span>Inviata: {new Date(currentComm.createdAt).toLocaleDateString('it-IT')} {new Date(currentComm.createdAt).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })}</span>
+                </div>
+                
+                {/* Corpo del messaggio */}
+                <div style={{ 
+                  backgroundColor: 'rgba(255, 255, 255, 0.02)',
+                  border: '1px solid var(--border-color)',
+                  borderRadius: 'var(--radius-md)',
+                  padding: '20px',
+                  fontSize: '0.98rem',
+                  lineHeight: '1.6',
+                  color: '#f8fafc',
+                  whiteSpace: 'pre-wrap',
+                  maxHeight: '250px',
+                  overflowY: 'auto'
+                }}>
+                  {currentComm.message}
+                </div>
+              </div>
+              
+              <div className="modal-footer" style={{ padding: '16px 24px', borderTop: '1px solid var(--border-color)', justifyContent: 'center' }}>
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  style={{ 
+                    width: '100%', 
+                    height: '44px', 
+                    fontSize: '0.95rem', 
+                    fontWeight: '700',
+                    backgroundColor: 'var(--color-secondary)', 
+                    borderColor: 'var(--color-secondary)',
+                    boxShadow: '0 4px 12px rgba(14, 165, 233, 0.2)' 
+                  }}
+                  onClick={async () => {
+                    try {
+                      const res = await fetch(`${API_BASE}/notifications/${currentComm.id}/read`, {
+                        method: 'POST'
+                      });
+                      if (res.ok) {
+                        // Aggiorna lo stato locale delle notifiche
+                        setNotifications(prev => prev.map(item => item.id === currentComm.id ? { ...item, read: true, readAt: new Date().toISOString() } : item));
+                        addToast("Lettura confermata", "success");
+                      }
+                    } catch (err) {
+                      console.error("Error marking communication read:", err);
+                      addToast("Errore di connessione con il server", "error");
+                    }
+                  }}
+                >
+                  <CheckCircle size={16} style={{ marginRight: '6px' }} />
+                  Ho letto e confermo la lettura
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+      
     </div>
   );
 }

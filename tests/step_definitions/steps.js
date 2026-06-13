@@ -249,3 +249,35 @@ Then('il sistema deve impedirmi di inviare la richiesta perché supera il nuovo 
   await expect(toastError).toBeVisible();
   await expect(toastError).toContainText('supera il limite massimo');
 });
+
+// === COMUNICAZIONI ===
+
+When('inserisco nel messaggio {string}', async (msg) => {
+  await page.fill('textarea[placeholder*="Scrivi qui la comunicazione"]', msg);
+});
+
+Then('la comunicazione viene inviata con successo', async () => {
+  const toast = page.locator('.toast.success');
+  await expect(toast).toBeVisible();
+  await expect(toast).toContainText('successo');
+});
+
+Then('vedo un popup bloccante con il messaggio {string}', async (msg) => {
+  const modal = page.locator('.modal-backdrop:has-text("Comunicazione Importante")');
+  await expect(modal).toBeVisible();
+  await expect(modal).toContainText(msg);
+});
+
+Then('il popup scompare e posso navigare nell\'applicazione', async () => {
+  const modal = page.locator('.modal-backdrop:has-text("Comunicazione Importante")');
+  await expect(modal).not.toBeVisible();
+});
+
+When('clicco su {string} della comunicazione inviata', async (btnText) => {
+  await page.click(`button:has-text("${btnText}")`);
+});
+
+Then('vedo che {string} ha lo stato di lettura {string}', async (name, status) => {
+  const row = page.locator('.custom-table tbody tr', { hasText: name }).first();
+  await expect(row.locator('.badge')).toContainText(status);
+});

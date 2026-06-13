@@ -79,7 +79,8 @@ test.describe('Sistema Gestione Ferie - E2E Tests', () => {
     await expect(page.locator('.toast.success')).toContainText('approvata');
 
     // Esegui logout
-    await page.click('.logout-btn');
+    await page.click('.profile-widget-btn');
+    await page.click('.profile-dropdown-item.logout');
 
     // Rientra come dipendente per verificare la firma di approvazione
     await page.locator('.quick-login-btn', { hasText: 'Mario Rossi' }).click();
@@ -107,7 +108,8 @@ test.describe('Sistema Gestione Ferie - E2E Tests', () => {
     await expect(page.locator('.toast.success')).toContainText('rifiutata');
 
     // Logout e login dipendente per verifica
-    await page.click('.logout-btn');
+    await page.click('.profile-widget-btn');
+    await page.click('.profile-dropdown-item.logout');
     await page.locator('.quick-login-btn', { hasText: 'Mario Rossi' }).click();
 
     // Verifica diciture di rifiuto e motivo
@@ -127,13 +129,41 @@ test.describe('Sistema Gestione Ferie - E2E Tests', () => {
     await page.click('button:has-text("Salva Impostazioni")');
     await expect(page.locator('.toast.success')).toContainText('salvate');
 
-    await page.click('.logout-btn');
+    await page.click('.profile-widget-btn');
+    await page.click('.profile-dropdown-item.logout');
 
     // Accedi come dipendente
     await page.locator('.quick-login-btn', { hasText: 'Mario Rossi' }).click();
 
     // Verifica che il saldo totale ferie del dipendente sia ora 28
-    await expect(page.locator('.stat-box:has-text("Residuo Disponibile") .stat-value')).toContainText('28 g');
+    await expect(page.locator('.stat-card:has-text("Residuo Disponibile") .stat-value')).toContainText('28 g');
+  });
+
+  test('6. Invio comunicazione da Admin e visualizzazione popup bloccante per dipendente', async ({ page }) => {
+    // Accedi come Admin ed entra nelle comunicazioni
+    await page.locator('.quick-login-btn', { hasText: 'Admin User' }).click();
+    await page.click('.nav-item:has-text("Comunicazioni")');
+
+    // Digita ed invia comunicazione
+    await page.fill('textarea[placeholder*="Scrivi qui la comunicazione"]', 'Nuovo orario estivo');
+    await page.click('button:has-text("Invia Comunicazione a Tutti")');
+    await expect(page.locator('.toast.success')).toContainText('successo');
+
+    // Logout
+    await page.click('.profile-widget-btn');
+    await page.click('.profile-dropdown-item.logout');
+
+    // Accedi come dipendente
+    await page.locator('.quick-login-btn', { hasText: 'Mario Rossi' }).click();
+
+    // Verifica la presenza del popup bloccante
+    const modal = page.locator('.modal-backdrop:has-text("Comunicazione Importante")');
+    await expect(modal).toBeVisible();
+    await expect(modal).toContainText('Nuovo orario estivo');
+
+    // Conferma la lettura
+    await modal.locator('button:has-text("Ho letto e confermo la lettura")').click();
+    await expect(modal).not.toBeVisible();
   });
 
 });

@@ -226,22 +226,145 @@
       "id": "notif-1781364974521",
       "userId": "dipendente-1",
       "message": "La tua richiesta di ferie dal 16/06/2026 al 17/06/2026 è stata approvata.",
-      "read": false,
-      "createdAt": "2026-06-13T15:36:14.521Z"
+      "read": true,
+      "createdAt": "2026-06-13T15:36:14.521Z",
+      "readAt": "2026-06-13T21:33:17.271Z"
     },
     {
       "id": "notif-1781365266630",
       "userId": "dipendente-1",
       "message": "La tua richiesta di ferie dal 23/06/2026 al 24/06/2026 è stata rifiutata da Admin User (Admin). Motivazione: Devi lavorà",
-      "read": false,
-      "createdAt": "2026-06-13T15:41:06.630Z"
+      "read": true,
+      "createdAt": "2026-06-13T15:41:06.630Z",
+      "readAt": "2026-06-13T21:33:17.271Z"
     },
     {
       "id": "notif-1781365850645",
       "userId": "dipendente-1",
       "message": "La tua richiesta di ferie dal 20/07/2026 al 24/07/2026 è stata rifiutata da Admin User (Admin). Motivazione: troppe ferie",
+      "read": true,
+      "createdAt": "2026-06-13T15:50:50.645Z",
+      "readAt": "2026-06-13T21:33:17.271Z"
+    },
+    {
+      "id": "notif-comm-1781386375168-dipendente-1",
+      "userId": "dipendente-1",
+      "message": "Ciao a tutti, avrei bisogno del piano ferie domani.",
+      "read": true,
+      "readAt": "2026-06-13T21:33:21.915Z",
+      "createdAt": "2026-06-13T21:32:55.168Z",
+      "isCommunication": true,
+      "communicationId": "comm-1781386375168",
+      "senderId": "admin-1",
+      "senderName": "Admin User"
+    },
+    {
+      "id": "notif-comm-1781386375168-dipendente-2",
+      "userId": "dipendente-2",
+      "message": "Ciao a tutti, avrei bisogno del piano ferie domani.",
       "read": false,
-      "createdAt": "2026-06-13T15:50:50.645Z"
+      "readAt": null,
+      "createdAt": "2026-06-13T21:32:55.168Z",
+      "isCommunication": true,
+      "communicationId": "comm-1781386375168",
+      "senderId": "admin-1",
+      "senderName": "Admin User"
+    },
+    {
+      "id": "notif-comm-1781386375168-dipendente-3",
+      "userId": "dipendente-3",
+      "message": "Ciao a tutti, avrei bisogno del piano ferie domani.",
+      "read": false,
+      "readAt": null,
+      "createdAt": "2026-06-13T21:32:55.168Z",
+      "isCommunication": true,
+      "communicationId": "comm-1781386375168",
+      "senderId": "admin-1",
+      "senderName": "Admin User"
+    },
+    {
+      "id": "notif-comm-1781386375168-dipendente-4",
+      "userId": "dipendente-4",
+      "message": "Ciao a tutti, avrei bisogno del piano ferie domani.",
+      "read": false,
+      "readAt": null,
+      "createdAt": "2026-06-13T21:32:55.168Z",
+      "isCommunication": true,
+      "communicationId": "comm-1781386375168",
+      "senderId": "admin-1",
+      "senderName": "Admin User"
+    },
+    {
+      "id": "notif-comm-1781386375168-hr-1",
+      "userId": "hr-1",
+      "message": "Ciao a tutti, avrei bisogno del piano ferie domani.",
+      "read": true,
+      "readAt": "2026-06-13T21:33:43.086Z",
+      "createdAt": "2026-06-13T21:32:55.168Z",
+      "isCommunication": true,
+      "communicationId": "comm-1781386375168",
+      "senderId": "admin-1",
+      "senderName": "Admin User"
+    },
+    {
+      "id": "notif-comm-1781386703743-dipendente-1",
+      "userId": "dipendente-1",
+      "message": "Nuova comunicazione, leggetela!!!!!!!!!!!!",
+      "read": true,
+      "readAt": "2026-06-13T21:38:38.499Z",
+      "createdAt": "2026-06-13T21:38:23.743Z",
+      "isCommunication": true,
+      "communicationId": "comm-1781386703743",
+      "senderId": "admin-1",
+      "senderName": "Admin User"
+    },
+    {
+      "id": "notif-comm-1781386703743-dipendente-2",
+      "userId": "dipendente-2",
+      "message": "Nuova comunicazione, leggetela!!!!!!!!!!!!",
+      "read": false,
+      "readAt": null,
+      "createdAt": "2026-06-13T21:38:23.743Z",
+      "isCommunication": true,
+      "communicationId": "comm-1781386703743",
+      "senderId": "admin-1",
+      "senderName": "Admin User"
+    },
+    {
+      "id": "notif-comm-1781386703743-dipendente-3",
+      "userId": "dipendente-3",
+      "message": "Nuova comunicazione, leggetela!!!!!!!!!!!!",
+      "read": false,
+      "readAt": null,
+      "createdAt": "2026-06-13T21:38:23.743Z",
+      "isCommunication": true,
+      "communicationId": "comm-1781386703743",
+      "senderId": "admin-1",
+      "senderName": "Admin User"
+    },
+    {
+      "id": "notif-comm-1781386703743-dipendente-4",
+      "userId": "dipendente-4",
+      "message": "Nuova comunicazione, leggetela!!!!!!!!!!!!",
+      "read": false,
+      "readAt": null,
+      "createdAt": "2026-06-13T21:38:23.743Z",
+      "isCommunication": true,
+      "communicationId": "comm-1781386703743",
+      "senderId": "admin-1",
+      "senderName": "Admin User"
+    },
+    {
+      "id": "notif-comm-1781386703743-hr-1",
+      "userId": "hr-1",
+      "message": "Nuova comunicazione, leggetela!!!!!!!!!!!!",
+      "read": true,
+      "readAt": "2026-06-13T21:38:51.246Z",
+      "createdAt": "2026-06-13T21:38:23.743Z",
+      "isCommunication": true,
+      "communicationId": "comm-1781386703743",
+      "senderId": "admin-1",
+      "senderName": "Admin User"
     }
   ],
   "settings": {

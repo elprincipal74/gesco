@@ -253,17 +253,120 @@ app.get('/api/notifications/:userId', (req, res) => {
   res.json(userNotifs.reverse()); // latest first
 });
 
-// 4. Mark notifications as read
+// 4. Mark notifications as read (except communications which need explicit confirmation)
 app.post('/api/notifications/read-all', (req, res) => {
   const { userId } = req.body;
   if (!userId) return res.status(400).json({ error: "UserId mancante" });
   
   const db = getDB();
   db.notifications.forEach(n => {
-    if (n.userId === userId) n.read = true;
+    if (n.userId === userId && !n.isCommunication) {
+      if (!n.read) {
+        n.read = true;
+        n.readAt = new Date().toISOString();
+      }
+    }
   });
   writeDB(db);
   res.json({ success: true });
+});
+
+// 4.1 Mark a single notification as read (with readAt timestamp)
+app.post('/api/notifications/:id/read', (req, res) => {
+  const { id } = req.params;
+  const db = getDB();
+  const notif = db.notifications.find(n => n.id === id);
+  if (!notif) {
+    return res.status(404).json({ error: "Notifica non trovata." });
+  }
+  
+  if (!notif.read) {
+    notif.read = true;
+    notif.readAt = new Date().toISOString();
+    writeDB(db);
+  }
+  
+  res.json({ success: true, notification: notif });
+});
+
+// 4.2 Send communication to all users (Admin/HR only)
+app.post('/api/communications', (req, res) => {
+  const { senderId, message } = req.body;
+  if (!senderId || !message) {
+    return res.status(400).json({ error: "Mittente e messaggio sono obbligatori." });
+  }
+  
+  const cleanMessage = message.trim();
+  if (cleanMessage.length === 0) {
+    return res.status(400).json({ error: "Il messaggio non può essere vuoto." });
+  }
+  if (cleanMessage.length > 500) {
+    return res.status(400).json({ error: "Il messaggio supera il limite consentito di 500 caratteri." });
+  }
+  
+  const db = getDB();
+  const sender = db.users.find(u => u.id === senderId);
+  if (!sender || (sender.role !== 'Admin' && sender.role !== 'HR')) {
+    return res.status(403).json({ error: "Non autorizzato. Solo Admin e HR possono inviare comunicazioni." });
+  }
+  
+  const communicationId = 'comm-' + Date.now();
+  const createdAt = new Date().toISOString();
+  
+  // Broadcast to all users (excluding the sender)
+  const recipients = db.users.filter(u => u.id !== senderId);
+  recipients.forEach(user => {
+    db.notifications.push({
+      id: `notif-${communicationId}-${user.id}`,
+      userId: user.id,
+      message: cleanMessage,
+      read: false,
+      readAt: null,
+      createdAt: createdAt,
+      isCommunication: true,
+      communicationId: communicationId,
+      senderId: senderId,
+      senderName: sender.name
+    });
+  });
+  
+  writeDB(db);
+  res.json({ message: "Comunicazione inviata con successo", communicationId });
+});
+
+// 4.3 Get communications list with read confirmation stats (Admin/HR only)
+app.get('/api/communications', (req, res) => {
+  const db = getDB();
+  const commsMap = {};
+  
+  db.notifications.forEach(n => {
+    if (n.isCommunication && n.communicationId) {
+      const cId = n.communicationId;
+      const user = db.users.find(u => u.id === n.userId);
+      const recipientInfo = {
+        userId: n.userId,
+        userName: user ? user.name : n.userId,
+        userRole: user ? user.role : 'Dipendente',
+        read: n.read,
+        readAt: n.readAt || null
+      };
+      
+      if (!commsMap[cId]) {
+        commsMap[cId] = {
+          communicationId: cId,
+          message: n.message,
+          createdAt: n.createdAt,
+          senderId: n.senderId,
+          senderName: n.senderName || 'Sistema',
+          recipients: []
+        };
+      }
+      commsMap[cId].recipients.push(recipientInfo);
+    }
+  });
+  
+  const communications = Object.values(commsMap).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+  res.json(communications);
 });
 
 // 5. Create new holiday request

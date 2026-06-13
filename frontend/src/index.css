@@ -1572,4 +1572,42 @@ a:hover {
   border-radius: 14px;
 }
 
+/* Communications Feature CSS */
+.communications-tab-container {
+  animation: fade-in 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.communication-notif {
+  border-left: 3px solid var(--color-secondary) !important;
+  background-color: rgba(14, 165, 233, 0.03) !important;
+}
+
+.communication-notif.read {
+  border-left-color: transparent !important;
+  background-color: rgba(255, 255, 255, 0.02) !important;
+  opacity: 0.65;
+}
+
+.communication-badge-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background-color: rgba(14, 165, 233, 0.1);
+  padding: 2px 6px;
+  border-radius: 4px;
+  margin-bottom: 6px;
+  font-size: 0.65rem;
+  font-weight: 700;
+  color: var(--color-secondary);
+}
+
+.animate-spin {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
 
