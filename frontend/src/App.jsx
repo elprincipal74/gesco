@@ -29,8 +29,8 @@ import {
 import { jsPDF } from 'jspdf';
 import 'jspdf-autotable';
 
-// Smart API base URL selection (works in dev and build mode)
-const API_BASE = window.location.origin.includes('5173') ? 'http://localhost:5000/api' : '/api';
+// Smart API base URL selection (works in dev and build mode via Vite proxy)
+const API_BASE = '/api';
 
 // --- MVP 3: Italian Holiday & Easter Algorithms (Frontend side) ---
 
@@ -232,6 +232,9 @@ export default function App() {
       } else if (data.user.role === 'HR') {
         setActiveTab('coverage');
       }
+      
+      // Load data for the logged in user
+      fetchData();
     } catch (err) {
       console.error(err);
       setLoginError("Errore di connessione con il server.");
@@ -268,6 +271,9 @@ export default function App() {
         } else if (data.user.role === 'HR') {
           setActiveTab('coverage');
         }
+        
+        // Load data for the logged in user
+        fetchData();
       } catch (err) {
         console.error(err);
         setLoginError("Errore di connessione con il server.");
@@ -280,6 +286,10 @@ export default function App() {
     setCurrentUser(null);
     localStorage.removeItem('ferie_user');
     addToast("Sessione terminata.", "info");
+    fetch(`${API_BASE}/logout`, { method: 'POST' }).catch(() => {});
+    setUsers([]);
+    setRequests([]);
+    setSettings({});
   };
 
   // Profile editing form states
@@ -404,24 +414,37 @@ export default function App() {
     }, 4000);
   };
 
-  // Fetch initial data
-  const fetchData = async () => {
+  // Fetch initial data - defined as a hoisted function so it can be called inside login handlers
+  async function fetchData() {
     try {
       const [usersRes, reqsRes, settingsRes] = await Promise.all([
         fetch(`${API_BASE}/users`),
         fetch(`${API_BASE}/requests`),
         fetch(`${API_BASE}/settings`)
       ]);
-      const usersData = await usersRes.json();
-      const reqsData = await reqsRes.json();
-      const settingsData = await settingsRes.json();
       
-      setUsers(usersData);
-      setRequests(reqsData);
-      setSettings(settingsData);
+      // Handle unauthorized/session expiration cases silently without crashing the frontend
+      if (usersRes.status === 401 || reqsRes.status === 401 || settingsRes.status === 401) {
+        setUsers([]);
+        setRequests([]);
+        setSettings({});
+        if (currentUser) {
+          setCurrentUser(null);
+          localStorage.removeItem('ferie_user');
+        }
+        return;
+      }
+      
+      const usersData = usersRes.ok ? await usersRes.json() : [];
+      const reqsData = reqsRes.ok ? await reqsRes.json() : [];
+      const settingsData = settingsRes.ok ? await settingsRes.json() : {};
+      
+      setUsers(Array.isArray(usersData) ? usersData : []);
+      setRequests(Array.isArray(reqsData) ? reqsData : []);
+      setSettings(settingsData && !settingsData.error ? settingsData : {});
       
       // Update currentUser reference to reflect balance changes
-      if (currentUser) {
+      if (currentUser && Array.isArray(usersData)) {
         const updatedUser = usersData.find(u => u.id === currentUser.id);
         if (updatedUser) {
           setCurrentUser(updatedUser);
@@ -433,9 +456,11 @@ export default function App() {
       }
     } catch (err) {
       console.error("Error fetching data:", err);
-      addToast("Errore di connessione con il server backend", "error");
+      if (currentUser) {
+        addToast("Errore di connessione con il server backend", "error");
+      }
     }
-  };
+  }
 
   useEffect(() => {
     fetchData();

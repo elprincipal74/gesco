@@ -4,14 +4,18 @@
   "description": "Sistema di Gestione Ferie",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js",
+    "start": "node src/server.js",
     "frontend-install": "npm install --prefix frontend",
     "frontend-dev": "npm run dev --prefix frontend",
-    "dev": "concurrently \"node server.js\" \"npm run dev --prefix frontend\""
+    "dev": "concurrently \"node src/server.js\" \"npm run dev --prefix frontend\""
   },
   "dependencies": {
+    "bcryptjs": "^3.0.3",
+    "better-sqlite3": "^10.0.0",
+    "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
-    "express": "^4.19.2"
+    "express": "^4.19.2",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@cucumber/cucumber": "^13.0.0",

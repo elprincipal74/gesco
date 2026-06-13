@@ -9,6 +9,9 @@ const BASE_URL = 'http://localhost:5173';
 test.describe('Sistema Gestione Ferie - E2E Tests', () => {
 
   test.beforeEach(async ({ page }) => {
+    // Reset database to initial seed state
+    await page.request.post(`${BASE_URL}/api/test/reset`);
+    
     // Carica la pagina e imposta la sessione pulita
     await page.goto(BASE_URL);
   });
@@ -21,8 +24,8 @@ test.describe('Sistema Gestione Ferie - E2E Tests', () => {
     await expect(page.locator('.logo-text')).toContainText('Sistema Ferie');
     await expect(page.locator('.user-profile-widget')).toContainText('Mario Rossi');
 
-    // Clicca su un giorno specifico del calendario (es. il giorno 15 del mese corrente)
-    const targetCell = page.locator('.date-picker-cell').filter({ hasText: /^15$/ }).first();
+    // Clicca su un giorno specifico del calendario (es. il giorno 17 del mese corrente)
+    const targetCell = page.locator('.date-picker-cell').filter({ hasText: /^17$/ }).first();
     await targetCell.click();
 
     // Scegli la tipologia di assenza "Ferie"
@@ -32,9 +35,8 @@ test.describe('Sistema Gestione Ferie - E2E Tests', () => {
     await page.click('button:has-text("Invia Richiesta")');
 
     // Verifica la notifica di successo
-    const toast = page.locator('.toast.success');
+    const toast = page.locator('.toast.success').filter({ hasText: 'successo' });
     await expect(toast).toBeVisible();
-    await expect(toast).toContainText('successo');
 
     // Controlla che la richiesta compaia nella tabella "Le Mie Richieste" in stato "In attesa"
     const firstRowStatus = page.locator('.custom-table tbody tr').first().locator('.badge');
@@ -59,7 +61,7 @@ test.describe('Sistema Gestione Ferie - E2E Tests', () => {
     await page.click('button:has-text("Invia Richiesta")');
 
     // Verifica il successo
-    const toast = page.locator('.toast.success');
+    const toast = page.locator('.toast.success').filter({ hasText: 'successo' });
     await expect(toast).toBeVisible();
   });
 
@@ -72,11 +74,11 @@ test.describe('Sistema Gestione Ferie - E2E Tests', () => {
 
     // Verifica la presenza della tabella richieste pendenti
     await expect(page.locator('.card-title')).toContainText('Richieste Ferie Pendenti');
-    await expect(page.locator('.role-badge-pill')).toContainText('HR Panel');
+    await expect(page.locator('.role-badge-pill.hr')).toContainText('HR Panel');
 
     // Approva la prima richiesta pendente
     await page.locator('button:has-text("Approva")').first().click();
-    await expect(page.locator('.toast.success')).toContainText('approvata');
+    await expect(page.locator('.toast.success').filter({ hasText: 'approvata' })).toBeVisible();
 
     // Esegui logout
     await page.click('.profile-widget-btn');
@@ -86,7 +88,7 @@ test.describe('Sistema Gestione Ferie - E2E Tests', () => {
     await page.locator('.quick-login-btn', { hasText: 'Mario Rossi' }).click();
 
     // Verifica che la richiesta approvata rechi la dicitura "Approvata da: HR User (HR)"
-    const approvedByText = page.locator('.custom-table tbody tr').first().locator('div');
+    const approvedByText = page.locator('.custom-table tbody tr').first();
     await expect(approvedByText).toContainText('Approvata da: HR User (HR)');
   });
 
@@ -105,7 +107,7 @@ test.describe('Sistema Gestione Ferie - E2E Tests', () => {
     await textarea.fill('Rifiutata per sovrapposizione turni');
     await page.click('.modal-window button:has-text("Rifiuta Richiesta")');
 
-    await expect(page.locator('.toast.success')).toContainText('rifiutata');
+    await expect(page.locator('.toast.success').filter({ hasText: 'rifiutata' })).toBeVisible();
 
     // Logout e login dipendente per verifica
     await page.click('.profile-widget-btn');
@@ -127,7 +129,7 @@ test.describe('Sistema Gestione Ferie - E2E Tests', () => {
     await page.fill('input:below(:text("Ferie Annuali Dipendenti"))', '28');
     await page.fill('input:below(:text("Limite Massimo Permesso Studio"))', '3');
     await page.click('button:has-text("Salva Impostazioni")');
-    await expect(page.locator('.toast.success')).toContainText('salvate');
+    await expect(page.locator('.toast.success').filter({ hasText: 'salvate' })).toBeVisible();
 
     await page.click('.profile-widget-btn');
     await page.click('.profile-dropdown-item.logout');
@@ -147,7 +149,7 @@ test.describe('Sistema Gestione Ferie - E2E Tests', () => {
     // Digita ed invia comunicazione
     await page.fill('textarea[placeholder*="Scrivi qui la comunicazione"]', 'Nuovo orario estivo');
     await page.click('button:has-text("Invia Comunicazione a Tutti")');
-    await expect(page.locator('.toast.success')).toContainText('successo');
+    await expect(page.locator('.toast.success').filter({ hasText: 'successo' })).toBeVisible();
 
     // Logout
     await page.click('.profile-widget-btn');
