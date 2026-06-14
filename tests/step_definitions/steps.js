@@ -116,7 +116,11 @@ When('clicco sul pulsante {string} senza caricare alcun file', async (btnText) =
 // === AZIONI APPROVAZIONE / RIFIUTO / IMPOSTAZIONI ===
 
 When('accedo alla scheda {string}', async (tabName) => {
-  await page.click(`.nav-item:has-text("${tabName}")`);
+  if (tabName === 'Approvazioni') {
+    await page.locator('.nav-item').filter({ hasText: /Approvazioni \(\d+\)/ }).first().click();
+  } else {
+    await page.click(`.nav-item:has-text("${tabName}")`);
+  }
 });
 
 When('clicco sul pulsante {string} per la richiesta di {string}', async (action, employee) => {
@@ -281,3 +285,156 @@ Then('vedo che {string} ha lo stato di lettura {string}', async (name, status) =
   const row = page.locator('.custom-table tbody tr', { hasText: name }).first();
   await expect(row.locator('.badge')).toContainText(status);
 });
+
+// === RAPPORTINI (TIMESHEET) ===
+
+Given('che il dipendente {string} è registrato nel sistema', async (name) => {
+  // Already seeded by default
+});
+
+When('seleziono il giorno {string} dal calendario del rapportino', async (dateStr) => {
+  const dayNum = parseInt(dateStr.split('-')[2]);
+  const cell = page.locator('.timesheet-tab-container .date-picker-cell').filter({ hasText: new RegExp(`^${dayNum}(\\D|$)`) }).first();
+  await cell.click();
+});
+
+When('inserisco l\'attività di tipo {string} sul progetto {string} con ore {int} e nota {string}', async (type, project, hours, notes) => {
+  await page.selectOption('.timesheet-tab-container select', type);
+  if (type === 'Lavoro') {
+    await page.fill('.timesheet-tab-container input[placeholder*="progetto"]', project);
+  }
+  if (type === 'Lavoro' || type === 'Permesso') {
+    await page.fill('.timesheet-tab-container input[type="number"]', String(hours));
+  }
+  await page.fill('.timesheet-tab-container textarea[placeholder*="note"]', notes);
+});
+
+When('applico le modifiche al giorno', async () => {
+  await page.click('.timesheet-tab-container button:has-text("Applica a questo giorno")');
+});
+
+When('clicco sul pulsante {string} del rapportino', async (btnText) => {
+  if (btnText === 'Invia per Approvazione') {
+    page.once('dialog', dialog => dialog.accept());
+  }
+  await page.click(`.timesheet-tab-container button:has-text("${btnText}")`);
+});
+
+Then('il rapportino viene salvato nello stato {string}', async (status) => {
+  const badge = page.locator('.timesheet-tab-container .badge', { hasText: status });
+  await expect(badge).toBeVisible();
+});
+
+Then('lo stato del rapportino diventa {string}', async (status) => {
+  const badge = page.locator('.timesheet-tab-container .badge', { hasText: status });
+  await expect(badge).toBeVisible();
+});
+
+Given('che il dipendente {string} ha inviato il rapportino per Agosto 2026', async (employee) => {
+  // Log in as employee
+  const name = employee.includes('Mario') ? 'Mario Rossi' : 'Luigi Bianchi';
+  await page.locator('.quick-login-btn', { hasText: name }).click();
+  
+  // Submit timesheet via API using page.evaluate
+  await page.evaluate(async () => {
+    const days = [];
+    for (let d = 1; d <= 31; d++) {
+      const dateStr = `2026-08-${String(d).padStart(2, '0')}`;
+      const tempDate = new Date(2026, 7, d);
+      const isWeekend = tempDate.getDay() === 0 || tempDate.getDay() === 6;
+      days.push({
+        date: dateStr,
+        type: 'Lavoro',
+        projectName: isWeekend ? 'Riposo' : 'Progetto Alpha',
+        hours: isWeekend ? 0 : 8.0,
+        notes: ''
+      });
+    }
+    
+    await fetch('/api/timesheets/save', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ year: 2026, month: 8, days })
+    });
+    
+    await fetch('/api/timesheets/submit', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ year: 2026, month: 8 })
+    });
+  });
+  
+  // Log out
+  await page.click('.profile-widget-btn');
+  await page.click('.profile-dropdown-item.logout');
+});
+
+Given('effettuo il login come Team Leader con email {string}', async (email) => {
+  await page.locator('.quick-login-btn', { hasText: 'Giuseppe Verdi' }).click();
+});
+
+Then('vedo il rapportino inviato di {string} per il mese {string}', async (employee, month) => {
+  const card = page.locator('.timesheet-approvals-tab-container').locator('.glass-card', { hasText: employee });
+  await expect(card).toBeVisible();
+  await expect(card).toContainText(month);
+});
+
+When('clicco su {string} per il rapportino di {string}', async (btnText, employee) => {
+  const card = page.locator('.timesheet-approvals-tab-container .glass-card', { hasText: employee }).first();
+  await card.locator(`button:has-text("${btnText}")`).click();
+});
+
+Then('vedo che ha lavorato {int} ore sul progetto {string} il giorno {string}', async (hours, project, dateStr) => {
+  const dayNum = parseInt(dateStr.split('-')[2]);
+  const row = page.locator('.custom-table tbody tr', { hasText: `${dayNum}/8` }).first();
+  await expect(row).toContainText(project);
+  await expect(row).toContainText(String(hours));
+});
+
+When('clicco su "Approva" per il rapportino di {string}', async (employee) => {
+  page.once('dialog', dialog => dialog.accept());
+  const card = page.locator('.timesheet-approvals-tab-container .glass-card', { hasText: employee }).first();
+  await card.locator('button:has-text("Approva")').click();
+});
+
+Then('il rapportino di {string} cambia stato in {string}', async (employee, status) => {
+  const toast = page.locator('.toast.success');
+  await expect(toast).toBeVisible();
+});
+
+When('clicco su "Rifiuta" per il rapportino di {string}', async (employee) => {
+  const card = page.locator('.timesheet-approvals-tab-container .glass-card', { hasText: employee }).first();
+  await card.locator('button:has-text("Rifiuta")').click();
+});
+
+When('nel modulo di rifiuto rapportino inserisco la motivazione {string}', async (reason) => {
+  await page.fill('.modal-window textarea', reason);
+});
+
+When('confermo il rifiuto del rapportino', async () => {
+  await page.click('.modal-window button:has-text("Rifiuta Rapportino")');
+});
+
+When('il dipendente {string} accede alla scheda {string} per il mese di Agosto 2026', async (employee, tabName) => {
+  // Log out
+  await page.click('.profile-widget-btn');
+  await page.click('.profile-dropdown-item.logout');
+  
+  // Log in
+  const name = employee.includes('Mario') ? 'Mario Rossi' : 'Luigi Bianchi';
+  await page.locator('.quick-login-btn', { hasText: name }).click();
+  
+  // Go to tab
+  await page.click(`.nav-item:has-text("${tabName}")`);
+  
+  // Select August
+  await page.selectOption('.timesheet-tab-container select', { index: 7 });
+});
+
+Then('vede lo stato {string} con la motivazione {string}', async (status, reason) => {
+  const badge = page.locator('.timesheet-tab-container .badge', { hasText: status });
+  await expect(badge).toBeVisible();
+  const infoText = page.locator('.timesheet-tab-container p');
+  await expect(infoText).toContainText(reason);
+});
+

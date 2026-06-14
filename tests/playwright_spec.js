@@ -70,11 +70,11 @@ test.describe('Sistema Gestione Ferie - E2E Tests', () => {
     await page.locator('.quick-login-btn', { hasText: 'HR User' }).click();
 
     // Naviga nella scheda Approvazioni
-    await page.click('.nav-item:has-text("Approvazioni")');
+    await page.locator('.nav-item').filter({ hasText: /Approvazioni \(\d+\)/ }).first().click();
 
     // Verifica la presenza della tabella richieste pendenti
     await expect(page.locator('.card-title')).toContainText('Richieste Ferie Pendenti');
-    await expect(page.locator('.role-badge-pill.hr')).toContainText('HR Panel');
+    await expect(page.locator('.role-badge-pill.hr').filter({ hasText: 'HR Panel' })).toBeVisible();
 
     // Approva la prima richiesta pendente
     await page.locator('button:has-text("Approva")').first().click();
@@ -97,7 +97,7 @@ test.describe('Sistema Gestione Ferie - E2E Tests', () => {
     await page.locator('.quick-login-btn', { hasText: 'Admin User' }).click();
 
     // Naviga su Approvazioni
-    await page.click('.nav-item:has-text("Approvazioni")');
+    await page.locator('.nav-item').filter({ hasText: /Approvazioni \(\d+\)/ }).first().click();
 
     // Clicca su Rifiuta per la prima richiesta pendente
     await page.locator('button:has-text("Rifiuta")').first().click();
@@ -168,4 +168,170 @@ test.describe('Sistema Gestione Ferie - E2E Tests', () => {
     await expect(modal).not.toBeVisible();
   });
 
+  test('7. Compilazione e invio in approvazione di un rapportino', async ({ page }) => {
+    // Esegui l'accesso rapido come "Mario Rossi"
+    await page.locator('.quick-login-btn', { hasText: 'Mario Rossi' }).click();
+
+    // Naviga nella scheda Rapportino
+    await page.click('.nav-item:has-text("Rapportino")');
+
+    // Seleziona il giorno 10 del mese
+    await page.locator('.timesheet-tab-container .date-picker-cell').filter({ hasText: /^10(\D|$)/ }).first().click();
+
+    // Compila i dettagli del giorno 10 come Lavoro
+    await page.selectOption('.timesheet-tab-container form select', 'Lavoro');
+    await page.fill('.timesheet-tab-container input[placeholder*="progetto" i]', 'Progetto Alpha');
+    await page.fill('.timesheet-tab-container input[type="number"]', '8');
+    await page.fill('.timesheet-tab-container textarea[placeholder*="note" i]', 'Sviluppo backend');
+    await page.click('.timesheet-tab-container button:has-text("Applica a questo giorno")');
+
+    // Seleziona il giorno 11 del mese
+    await page.locator('.timesheet-tab-container .date-picker-cell').filter({ hasText: /^11(\D|$)/ }).first().click();
+
+    // Compila i dettagli del giorno 11 come Permesso
+    await page.selectOption('.timesheet-tab-container form select', 'Permesso');
+    await page.fill('.timesheet-tab-container input[type="number"]', '2');
+    await page.fill('.timesheet-tab-container textarea[placeholder*="note" i]', 'Visita dal dentista');
+    await page.click('.timesheet-tab-container button:has-text("Applica a questo giorno")');
+
+    // Salva bozza
+    await page.click('.timesheet-tab-container button:has-text("Salva Bozza")');
+    await expect(page.locator('.toast.success').first()).toBeVisible();
+    await expect(page.locator('.timesheet-tab-container .badge', { hasText: 'Bozza' })).toBeVisible();
+
+    // Invia in approvazione
+    page.once('dialog', dialog => dialog.accept());
+    await page.click('.timesheet-tab-container button:has-text("Invia per Approvazione")');
+    await expect(page.locator('.toast.success').first()).toBeVisible();
+    await expect(page.locator('.timesheet-tab-container .badge', { hasText: 'Inviato' })).toBeVisible();
+  });
+
+  test('8. Approvazione del rapportino da parte del Team Leader Giuseppe Verdi', async ({ page }) => {
+    // 1. Mario Rossi compila e invia il rapportino
+    await page.locator('.quick-login-btn', { hasText: 'Mario Rossi' }).click();
+    await page.click('.nav-item:has-text("Rapportino")');
+    await page.locator('.timesheet-tab-container .date-picker-cell').filter({ hasText: /^10(\D|$)/ }).first().click();
+    await page.selectOption('.timesheet-tab-container form select', 'Lavoro');
+    await page.fill('.timesheet-tab-container input[placeholder*="progetto" i]', 'Progetto Alpha');
+    await page.fill('.timesheet-tab-container input[type="number"]', '8');
+    await page.click('.timesheet-tab-container button:has-text("Applica a questo giorno")');
+    
+    page.once('dialog', dialog => dialog.accept());
+    await page.click('.timesheet-tab-container button:has-text("Invia per Approvazione")');
+    await expect(page.locator('.toast.success').first()).toBeVisible();
+
+    // 2. Logout e Login come Giuseppe Verdi (Team Leader)
+    await page.click('.profile-widget-btn');
+    await page.click('.profile-dropdown-item.logout');
+    await page.locator('.quick-login-btn', { hasText: 'Giuseppe Verdi' }).click();
+    
+    // Aspetta il caricamento delle notifiche dal server
+    try {
+      await page.waitForResponse(response => response.url().includes('/api/notifications/'), { timeout: 5000 });
+    } catch (e) {}
+
+    // Chiudi popup comunicazione bloccante per Giuseppe Verdi (potrebbero essercene molteplici)
+    const modalComm8 = page.locator('.modal-backdrop:has-text("Comunicazione Importante")');
+    for (let i = 0; i < 5; i++) {
+      try {
+        await expect(modalComm8).toBeVisible({ timeout: i === 0 ? 1500 : 500 });
+      } catch (e) {
+        break;
+      }
+      const currentText = await page.locator('.modal-backdrop .modal-body').textContent();
+      await modalComm8.locator('button:has-text("Ho letto e confermo la lettura")').click();
+      await expect(async () => {
+        const isStillVisible = await modalComm8.isVisible();
+        if (!isStillVisible) return true;
+        const newText = await page.locator('.modal-backdrop .modal-body').textContent();
+        if (newText !== currentText) return true;
+        throw new Error("Modal text not updated yet");
+      }).toPass({ timeout: 3000 });
+    }
+
+    // 3. Naviga su Approvazioni Rapportini
+    await page.click('.nav-item:has-text("Approvazioni Rapportini")');
+    const card = page.locator('.timesheet-approvals-tab-container .glass-card', { hasText: 'Mario Rossi' }).first();
+    await expect(card).toBeVisible();
+
+    // 4. Espandi dettagli e verifica
+    await card.locator('button:has-text("Visualizza Dettagli")').click();
+    const row = card.locator('.custom-table tbody tr', { hasText: '10/' }).first();
+    await expect(row).toContainText('Progetto Alpha');
+    await expect(row).toContainText('8');
+
+    // 5. Approva
+    page.once('dialog', dialog => dialog.accept());
+    await card.locator('button:has-text("Approva")').click();
+    await expect(page.locator('.toast.success').first()).toBeVisible();
+  });
+
+  test('9. Rifiuto del rapportino da parte del Team Leader con motivazione', async ({ page }) => {
+    // 1. Mario Rossi compila e invia il rapportino
+    await page.locator('.quick-login-btn', { hasText: 'Mario Rossi' }).click();
+    await page.click('.nav-item:has-text("Rapportino")');
+    await page.locator('.timesheet-tab-container .date-picker-cell').filter({ hasText: /^10(\D|$)/ }).first().click();
+    await page.selectOption('.timesheet-tab-container form select', 'Lavoro');
+    await page.fill('.timesheet-tab-container input[placeholder*="progetto" i]', 'Progetto Alpha');
+    await page.fill('.timesheet-tab-container input[type="number"]', '8');
+    await page.click('.timesheet-tab-container button:has-text("Applica a questo giorno")');
+    
+    page.once('dialog', dialog => dialog.accept());
+    await page.click('.timesheet-tab-container button:has-text("Invia per Approvazione")');
+    await expect(page.locator('.toast.success').first()).toBeVisible();
+
+    // 2. Logout e Login come Giuseppe Verdi (Team Leader)
+    await page.click('.profile-widget-btn');
+    await page.click('.profile-dropdown-item.logout');
+    await page.locator('.quick-login-btn', { hasText: 'Giuseppe Verdi' }).click();
+
+    // Aspetta il caricamento delle notifiche dal server
+    try {
+      await page.waitForResponse(response => response.url().includes('/api/notifications/'), { timeout: 5000 });
+    } catch (e) {}
+
+    // Chiudi popup comunicazione bloccante per Giuseppe Verdi (potrebbero essercene molteplici)
+    const modalComm9 = page.locator('.modal-backdrop:has-text("Comunicazione Importante")');
+    for (let i = 0; i < 5; i++) {
+      try {
+        await expect(modalComm9).toBeVisible({ timeout: i === 0 ? 1500 : 500 });
+      } catch (e) {
+        break;
+      }
+      const currentText = await page.locator('.modal-backdrop .modal-body').textContent();
+      await modalComm9.locator('button:has-text("Ho letto e confermo la lettura")').click();
+      await expect(async () => {
+        const isStillVisible = await modalComm9.isVisible();
+        if (!isStillVisible) return true;
+        const newText = await page.locator('.modal-backdrop .modal-body').textContent();
+        if (newText !== currentText) return true;
+        throw new Error("Modal text not updated yet");
+      }).toPass({ timeout: 3000 });
+    }
+
+    // 3. Naviga su Approvazioni Rapportini
+    await page.click('.nav-item:has-text("Approvazioni Rapportini")');
+    const card = page.locator('.timesheet-approvals-tab-container .glass-card', { hasText: 'Mario Rossi' }).first();
+    await expect(card).toBeVisible();
+
+    // 4. Rifiuta
+    await card.locator('button:has-text("Rifiuta")').click();
+    const modal = page.locator('.modal-window');
+    await expect(modal).toBeVisible();
+    await modal.locator('textarea').fill('Specificare meglio le note del giorno 10.');
+    await modal.locator('button:has-text("Rifiuta Rapportino")').click();
+    await expect(page.locator('.toast.success').first()).toBeVisible();
+
+    // 5. Logout e Login come Mario Rossi per controllare il rifiuto e la nota
+    await page.click('.profile-widget-btn');
+    await page.click('.profile-dropdown-item.logout');
+    await page.locator('.quick-login-btn', { hasText: 'Mario Rossi' }).click();
+    await page.click('.nav-item:has-text("Rapportino")');
+
+    // 6. Verifica lo stato e la motivazione
+    await expect(page.locator('.timesheet-tab-container .badge', { hasText: 'Rifiutato' })).toBeVisible();
+    await expect(page.locator('.timesheet-tab-container p')).toContainText('Specificare meglio le note del giorno 10.');
+  });
+
 });
+

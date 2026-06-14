@@ -92,11 +92,45 @@ if (!tableExists) {
     )
   `);
 
-  // Seeding from legacy database.json if exists
-  if (fs.existsSync(legacyDbPath)) {
-    console.log('Trovato file database.json legacy. Avvio migrazione dati...');
+  // 6. Monthly Reports Table (Timesheets)
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS monthly_reports (
+      id TEXT PRIMARY KEY,
+      userId TEXT NOT NULL,
+      userName TEXT NOT NULL,
+      year INTEGER NOT NULL,
+      month INTEGER NOT NULL,
+      status TEXT NOT NULL DEFAULT 'Bozza',
+      validatedBy TEXT DEFAULT NULL,
+      rejectionReason TEXT DEFAULT NULL,
+      submittedAt TEXT DEFAULT NULL,
+      validatedAt TEXT DEFAULT NULL,
+      createdAt TEXT NOT NULL,
+      updatedAt TEXT NOT NULL,
+      FOREIGN KEY(userId) REFERENCES users(id) ON DELETE CASCADE
+    )
+  `);
+
+  // 7. Daily Reports Table
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS daily_reports (
+      id TEXT PRIMARY KEY,
+      monthlyReportId TEXT NOT NULL,
+      date TEXT NOT NULL,
+      type TEXT NOT NULL,
+      projectName TEXT DEFAULT '',
+      hours REAL DEFAULT 8.0,
+      notes TEXT DEFAULT '',
+      FOREIGN KEY(monthlyReportId) REFERENCES monthly_reports(id) ON DELETE CASCADE
+    )
+  `);
+
+  // Seeding from legacy database.json or database.json.bak if exists
+  const seedPath = fs.existsSync(legacyDbPath) ? legacyDbPath : (fs.existsSync(legacyDbPath + '.bak') ? legacyDbPath + '.bak' : null);
+  if (seedPath) {
+    console.log(`Trovato file ${seedPath}. Avvio migrazione dati...`);
     try {
-      const rawData = fs.readFileSync(legacyDbPath, 'utf8');
+      const rawData = fs.readFileSync(seedPath, 'utf8');
       const data = JSON.parse(rawData);
 
       // Perform seeding in a transaction for safety and speed
@@ -110,12 +144,13 @@ if (!tableExists) {
           data.users.forEach(user => {
             const hashedPassword = bcrypt.hashSync(user.email.toLowerCase(), 10); // email as password for compatibility
             const balance = user.holidayBalance || { totalDays: 30, takenDays: 0, plannedDays: 0, remainingDays: 30 };
+            const role = user.email.toLowerCase() === 'giuseppe.verdi@azienda.it' ? 'Team Leader' : user.role;
             insertUser.run(
               user.id,
               user.name,
               user.email,
               hashedPassword,
-              user.role,
+              role,
               user.phone || '',
               user.address || '',
               user.iban || '',
@@ -188,9 +223,11 @@ if (!tableExists) {
       seedTransaction();
       console.log('Migrazione completata con successo!');
       
-      // Rename legacy database.json to backup
-      fs.renameSync(legacyDbPath, legacyDbPath + '.bak');
-      console.log('File database.json rinominato in database.json.bak.');
+      // Rename legacy database.json to backup if we read from it
+      if (seedPath === legacyDbPath) {
+        fs.renameSync(legacyDbPath, legacyDbPath + '.bak');
+        console.log('File database.json rinominato in database.json.bak.');
+      }
     } catch (err) {
       console.error('Errore durante la migrazione dei dati:', err);
     }
@@ -220,6 +257,8 @@ function resetDatabase() {
     db.prepare('DELETE FROM sessions').run();
     db.prepare('DELETE FROM notifications').run();
     db.prepare('DELETE FROM holiday_requests').run();
+    db.prepare('DELETE FROM daily_reports').run();
+    db.prepare('DELETE FROM monthly_reports').run();
     db.prepare('DELETE FROM users').run();
     db.prepare('DELETE FROM settings').run();
     
@@ -232,12 +271,13 @@ function resetDatabase() {
       data.users.forEach(user => {
         const hashedPassword = bcrypt.hashSync(user.email.toLowerCase(), 10);
         const balance = user.holidayBalance || { totalDays: 30, takenDays: 0, plannedDays: 0, remainingDays: 30 };
+        const role = user.email.toLowerCase() === 'giuseppe.verdi@azienda.it' ? 'Team Leader' : user.role;
         insertUser.run(
           user.id,
           user.name,
           user.email,
           hashedPassword,
-          user.role,
+          role,
           user.phone || '',
           user.address || '',
           user.iban || '',

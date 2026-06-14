@@ -39,6 +39,31 @@ const schemas = {
   
   sendCommunication: z.object({
     message: z.string().trim().min(1, "Il messaggio non può essere vuoto.").max(500, "Il messaggio supera il limite di 500 caratteri.")
+  }),
+
+  saveTimesheet: z.object({
+    year: z.coerce.number().int().min(2000).max(2100),
+    month: z.coerce.number().int().min(1).max(12),
+    days: z.array(z.object({
+      date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Data non valida (AAAA-MM-GG)"),
+      type: z.enum(["Lavoro", "Ferie", "Assenza Generica", "Attività interne", "Malattia", "Permesso"]),
+      projectName: z.string().trim().optional().default(''),
+      hours: z.coerce.number().min(0).max(24).optional().default(8.0),
+      notes: z.string().trim().max(250, "Le note non possono superare i 250 caratteri").optional().default('')
+    })).refine(days => {
+      for (const day of days) {
+        if (day.type === 'Permesso' && (!day.hours || day.hours <= 0 || day.hours > 8)) {
+          return false;
+        }
+      }
+      return true;
+    }, {
+      message: "I campi ore tra 0.5 e 8 per Permesso non sono validi."
+    })
+  }),
+
+  rejectTimesheet: z.object({
+    reason: z.string().trim().min(1, "La motivazione è obbligatoria per il rifiuto del rapportino.")
   })
 };
 
@@ -52,7 +77,8 @@ const validate = (schemaName) => {
     
     const result = schema.safeParse(req.body);
     if (!result.success) {
-      const errorMsg = result.error.errors.map(err => err.message).join(', ');
+      const issues = result.error.errors || result.error.issues || [];
+      const errorMsg = issues.map(err => err.message).join(', ');
       return res.status(400).json({ error: errorMsg });
     }
     

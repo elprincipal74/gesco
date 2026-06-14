@@ -181,7 +181,7 @@ export default function App() {
       const saved = localStorage.getItem('ferie_user');
       if (saved) {
         const user = JSON.parse(saved);
-        if (user.role === 'Dipendente') return 'dashboard';
+        if (user.role === 'Dipendente' || user.role === 'Team Leader') return 'dashboard';
         if (user.role === 'Admin') return 'approvals';
         if (user.role === 'HR') return 'coverage';
       }
@@ -225,7 +225,7 @@ export default function App() {
       localStorage.setItem('ferie_user', JSON.stringify(data.user));
       addToast(`Benvenuto, ${data.user.name}!`, "success");
       
-      if (data.user.role === 'Dipendente') {
+      if (data.user.role === 'Dipendente' || data.user.role === 'Team Leader') {
         setActiveTab('dashboard');
       } else if (data.user.role === 'Admin') {
         setActiveTab('approvals');
@@ -264,7 +264,7 @@ export default function App() {
         setCurrentUser(data.user);
         localStorage.setItem('ferie_user', JSON.stringify(data.user));
         addToast(`Accesso rapido come ${data.user.name}`, "success");
-        if (data.user.role === 'Dipendente') {
+        if (data.user.role === 'Dipendente' || data.user.role === 'Team Leader') {
           setActiveTab('dashboard');
         } else if (data.user.role === 'Admin') {
           setActiveTab('approvals');
@@ -299,6 +299,244 @@ export default function App() {
   const [profileAddress, setProfileAddress] = useState('');
   const [profileIban, setProfileIban] = useState('');
   const [showProfileDropdown, setShowProfileDropdown] = useState(false);
+
+  // Timesheet (Rapportino) states
+  const [timesheet, setTimesheet] = useState(null);
+  const [timesheetYear, setTimesheetYear] = useState(2026);
+  const [timesheetMonth, setTimesheetMonth] = useState(8); // Default to August 2026 for consistency with rest of app/tests
+  const [selectedTimesheetDay, setSelectedTimesheetDay] = useState(null);
+  const [timesheetLoading, setTimesheetLoading] = useState(false);
+  const [pendingTimesheets, setPendingTimesheets] = useState([]);
+  const [timesheetRejectionModal, setTimesheetRejectionModal] = useState({ open: false, timesheetId: '', reason: '' });
+  const [timesheetSubmitting, setTimesheetSubmitting] = useState(false);
+
+  // Timesheet API handlers
+  const fetchTimesheet = async (year, month) => {
+    if (!currentUser) return;
+    setTimesheetLoading(true);
+    try {
+      const res = await fetch(`${API_BASE}/timesheets/my-month?year=${year}&month=${month}`);
+      if (res.ok) {
+        const data = await res.json();
+        const totalDays = getDaysInMonth(year, month - 1);
+        const populatedDays = [];
+        for (let d = 1; d <= totalDays; d++) {
+          const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+          const existing = data.days && data.days.find(day => day.date === dateStr);
+          if (existing) {
+            populatedDays.push(existing);
+          } else {
+            const tempDate = new Date(year, month - 1, d);
+            const dayOfWeek = tempDate.getDay();
+            const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+            const isHoliday = isItalianHoliday(tempDate);
+            if (isWeekend || isHoliday) {
+              populatedDays.push({
+                date: dateStr,
+                type: 'Lavoro',
+                projectName: 'Riposo',
+                hours: 0,
+                notes: ''
+              });
+            } else {
+              populatedDays.push({
+                date: dateStr,
+                type: 'Lavoro',
+                projectName: '',
+                hours: 8.0,
+                notes: ''
+              });
+            }
+          }
+        }
+        data.days = populatedDays;
+        setTimesheet(data);
+        if (populatedDays.length > 0) {
+          setSelectedTimesheetDay(populatedDays[0]);
+        } else {
+          setSelectedTimesheetDay(null);
+        }
+      }
+    } catch (err) {
+      console.error("Error fetching timesheet:", err);
+      addToast("Errore nel caricamento del rapportino", "error");
+    } finally {
+      setTimesheetLoading(false);
+    }
+  };
+
+  const fetchPendingTimesheets = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/timesheets/pending`);
+      if (res.ok) {
+        const data = await res.json();
+        setPendingTimesheets(data);
+      }
+    } catch (err) {
+      console.error("Error fetching pending timesheets:", err);
+    }
+  };
+
+  const validateTimesheetDays = (days) => {
+    for (const d of days) {
+      if (d.type === 'Permesso') {
+        const h = parseFloat(d.hours);
+        if (isNaN(h) || h < 0.5 || h > 8) {
+          return `Il giorno ${formatDateIt(d.date)} ha tipo 'Permesso' ma le ore inserite (${d.hours}) non sono comprese tra 0.5 e 8.`;
+        }
+      }
+      if (d.notes && d.notes.trim().length > 250) {
+        return `Il giorno ${formatDateIt(d.date)} supera il limite di 250 caratteri nelle note.`;
+      }
+    }
+    return null;
+  };
+
+  const handleSaveTimesheet = async (silent = false) => {
+    if (!timesheet) return false;
+    const validationError = validateTimesheetDays(timesheet.days);
+    if (validationError) {
+      addToast(validationError, "error");
+      return false;
+    }
+    try {
+      const res = await fetch(`${API_BASE}/timesheets/save`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          year: timesheetYear,
+          month: timesheetMonth,
+          days: timesheet.days
+        })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        if (!silent) {
+          addToast("Bozza salvata con successo!", "success");
+        }
+        setTimesheet(data.timesheet);
+        return true;
+      } else {
+        addToast(data.error || "Errore durante il salvataggio", "error");
+        return false;
+      }
+    } catch (err) {
+      console.error(err);
+      addToast("Errore di connessione", "error");
+      return false;
+    }
+  };
+
+  const handleSubmitTimesheet = async () => {
+    if (!window.confirm("Sei sicuro di voler inviare il rapportino per l'approvazione? Non sarà più modificabile.")) return;
+    const saveSuccess = await handleSaveTimesheet(true);
+    if (!saveSuccess) return;
+    setTimesheetSubmitting(true);
+    try {
+      const res = await fetch(`${API_BASE}/timesheets/submit`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          year: timesheetYear,
+          month: timesheetMonth
+        })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        addToast("Rapportino inviato con successo!", "success");
+        fetchTimesheet(timesheetYear, timesheetMonth);
+      } else {
+        addToast(data.error || "Errore durante l'invio", "error");
+      }
+    } catch (err) {
+      console.error(err);
+      addToast("Errore di connessione", "error");
+    } finally {
+      setTimesheetSubmitting(false);
+    }
+  };
+
+  const handleApproveTimesheet = async (timesheetId) => {
+    if (!window.confirm("Sei sicuro di voler approvare questo rapportino?")) return;
+    try {
+      const res = await fetch(`${API_BASE}/timesheets/${timesheetId}/approve`, {
+        method: 'POST'
+      });
+      const data = await res.json();
+      if (res.ok) {
+        addToast("Rapportino approvato con successo!", "success");
+        fetchPendingTimesheets();
+      } else {
+        addToast(data.error || "Errore durante l'approvazione", "error");
+      }
+    } catch (err) {
+      console.error(err);
+      addToast("Errore di connessione", "error");
+    }
+  };
+
+  const handleRejectTimesheet = async (e) => {
+    e.preventDefault();
+    if (!timesheetRejectionModal.reason.trim()) {
+      addToast("La motivazione del rifiuto è obbligatoria", "error");
+      return;
+    }
+    try {
+      const res = await fetch(`${API_BASE}/timesheets/${timesheetRejectionModal.timesheetId}/reject`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reason: timesheetRejectionModal.reason })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        addToast("Rapportino rifiutato con successo!", "success");
+        setTimesheetRejectionModal({ open: false, timesheetId: '', reason: '' });
+        fetchPendingTimesheets();
+      } else {
+        addToast(data.error || "Errore durante il rifiuto", "error");
+      }
+    } catch (err) {
+      console.error(err);
+      addToast("Errore di connessione", "error");
+    }
+  };
+
+  const handleUpdateDay = (updatedDay) => {
+    if (updatedDay.type === 'Lavoro' && (!updatedDay.projectName || updatedDay.projectName.trim() === '')) {
+      addToast("Il nome progetto è obbligatorio per l'attività di tipo Lavoro.", "error");
+      return;
+    }
+    if (updatedDay.type === 'Permesso') {
+      const h = parseFloat(updatedDay.hours);
+      if (isNaN(h) || h < 0.5 || h > 8) {
+        addToast("Le ore di permesso devono essere comprese tra 0.5 e 8.", "error");
+        return;
+      }
+    }
+    if (updatedDay.notes && updatedDay.notes.length > 250) {
+      addToast("Le note superano il limite di 250 caratteri.", "error");
+      return;
+    }
+    
+    setTimesheet(prev => ({
+      ...prev,
+      days: prev.days.map(d => d.date === updatedDay.date ? { ...updatedDay } : d)
+    }));
+    addToast("Modifica applicata al giorno! Ricorda di salvare la bozza per renderla permanente.", "info");
+  };
+
+  useEffect(() => {
+    if (activeTab === 'timesheet') {
+      fetchTimesheet(timesheetYear, timesheetMonth);
+    }
+  }, [activeTab, timesheetYear, timesheetMonth, currentUser]);
+
+  useEffect(() => {
+    if (activeTab === 'timesheet-approvals') {
+      fetchPendingTimesheets();
+    }
+  }, [activeTab, currentUser]);
+
 
   useEffect(() => {
     if (currentUser) {
@@ -794,7 +1032,7 @@ export default function App() {
       cells.push(<div key={`empty-${i}`} className="calendar-cell empty" />);
     }
     
-    const totalEmployees = users.filter(u => u.role === 'Dipendente').length;
+    const totalEmployees = users.filter(u => u.role === 'Dipendente' || u.role === 'Team Leader').length;
     
     // Monthly days
     for (let d = 1; d <= daysInMonth; d++) {
@@ -1060,6 +1298,10 @@ export default function App() {
               <span className="quick-login-name">Luigi Bianchi</span>
               <span className="quick-login-role">Dipendente</span>
             </button>
+            <button className="quick-login-btn" onClick={() => handleQuickLogin('giuseppe.verdi@azienda.it')}>
+              <span className="quick-login-name">Giuseppe Verdi</span>
+              <span className="quick-login-role">Team Leader</span>
+            </button>
             <button className="quick-login-btn" onClick={() => handleQuickLogin('admin@azienda.it')}>
               <span className="quick-login-name">Admin User</span>
               <span className="quick-login-role">Amministratore</span>
@@ -1097,13 +1339,33 @@ export default function App() {
         </div>
         
         <nav className="nav-links">
-          {currentUser && currentUser.role === 'Dipendente' && (
+          {currentUser && (currentUser.role === 'Dipendente' || currentUser.role === 'Team Leader') && (
             <div 
               className={`nav-item ${activeTab === 'dashboard' ? 'active' : ''}`}
               onClick={() => setActiveTab('dashboard')}
             >
               <Layers className="nav-item-icon" />
               <span>Mio Piano Ferie</span>
+            </div>
+          )}
+
+          {currentUser && (currentUser.role === 'Dipendente' || currentUser.role === 'Team Leader') && (
+            <div 
+              className={`nav-item ${activeTab === 'timesheet' ? 'active' : ''}`}
+              onClick={() => setActiveTab('timesheet')}
+            >
+              <FileText className="nav-item-icon" />
+              <span>Rapportino</span>
+            </div>
+          )}
+
+          {currentUser && (currentUser.role === 'Admin' || currentUser.role === 'HR' || currentUser.role === 'Team Leader') && (
+            <div 
+              className={`nav-item ${activeTab === 'timesheet-approvals' ? 'active' : ''}`}
+              onClick={() => { setActiveTab('timesheet-approvals'); resetSelection(); }}
+            >
+              <FileCheck className="nav-item-icon" />
+              <span>Approvazioni Rapportini</span>
             </div>
           )}
           
@@ -1157,7 +1419,7 @@ export default function App() {
         {/* Current User Role Widget */}
         {currentUser && (
           <div className="user-profile-widget">
-            <span className="role-badge-pill dipendente">
+            <span className={`role-badge-pill ${currentUser.role.toLowerCase() === 'team leader' ? 'team-leader' : currentUser.role.toLowerCase() === 'dipendente' ? 'dipendente' : currentUser.role.toLowerCase() === 'admin' ? 'admin' : 'hr'}`}>
               {currentUser.role}
             </span>
             <div>
@@ -1302,7 +1564,7 @@ export default function App() {
                     <div className="profile-dropdown-header">
                       <span className="profile-dropdown-name">{currentUser.name}</span>
                       <span className="profile-dropdown-email">{currentUser.email}</span>
-                      <span className={`role-badge-pill ${currentUser.role.toLowerCase() === 'dipendente' ? 'dipendente' : currentUser.role.toLowerCase() === 'admin' ? 'admin' : 'hr'}`}>
+                      <span className={`role-badge-pill ${currentUser.role.toLowerCase() === 'team leader' ? 'team-leader' : currentUser.role.toLowerCase() === 'dipendente' ? 'dipendente' : currentUser.role.toLowerCase() === 'admin' ? 'admin' : 'hr'}`}>
                         {currentUser.role}
                       </span>
                     </div>
@@ -1311,13 +1573,33 @@ export default function App() {
                     
                     <div className="profile-dropdown-section-title">Navigazione</div>
                     
-                    {currentUser.role === 'Dipendente' && (
+                    {(currentUser.role === 'Dipendente' || currentUser.role === 'Team Leader') && (
                       <button 
                         className={`profile-dropdown-item ${activeTab === 'dashboard' ? 'active' : ''}`}
                         onClick={() => { setActiveTab('dashboard'); setShowProfileDropdown(false); }}
                       >
                         <Layers size={14} />
                         <span>Mio Piano Ferie</span>
+                      </button>
+                    )}
+
+                    {(currentUser.role === 'Dipendente' || currentUser.role === 'Team Leader') && (
+                      <button 
+                        className={`profile-dropdown-item ${activeTab === 'timesheet' ? 'active' : ''}`}
+                        onClick={() => { setActiveTab('timesheet'); setShowProfileDropdown(false); }}
+                      >
+                        <FileText size={14} />
+                        <span>Rapportino</span>
+                      </button>
+                    )}
+
+                    {(currentUser.role === 'Admin' || currentUser.role === 'HR' || currentUser.role === 'Team Leader') && (
+                      <button 
+                        className={`profile-dropdown-item ${activeTab === 'timesheet-approvals' ? 'active' : ''}`}
+                        onClick={() => { setActiveTab('timesheet-approvals'); setShowProfileDropdown(false); }}
+                      >
+                        <FileCheck size={14} />
+                        <span>Approvazioni Rapportini</span>
                       </button>
                     )}
                     
@@ -1394,7 +1676,7 @@ export default function App() {
         <div className="content-wrapper">
           
           {/* TAB 1: DIPENDENTE DASHBOARD */}
-          {activeTab === 'dashboard' && currentUser && currentUser.role === 'Dipendente' && (
+          {activeTab === 'dashboard' && currentUser && (currentUser.role === 'Dipendente' || currentUser.role === 'Team Leader') && (
             <div>
               {/* Balances Grid */}
               {currentUser.holidayBalance && (
@@ -1917,7 +2199,7 @@ export default function App() {
                 </div>
                 
                 <div className="custom-bar-chart">
-                  {users.filter(u => u.role === 'Dipendente').map(user => {
+                  {users.filter(u => u.role === 'Dipendente' || u.role === 'Team Leader').map(user => {
                     const balance = user.holidayBalance || { totalDays: 26, takenDays: 0, plannedDays: 0, remainingDays: 26 };
                     
                     const takenPct = (balance.takenDays / balance.totalDays) * 100;
@@ -2219,6 +2501,670 @@ export default function App() {
             </div>
           )}
 
+          {/* TAB 8: RAPPORTINO (TIMESHEET) */}
+          {activeTab === 'timesheet' && currentUser && (currentUser.role === 'Dipendente' || currentUser.role === 'Team Leader') && (
+            <div className="timesheet-tab-container" style={{ display: 'flex', flexDirection: 'column', gap: '30px' }}>
+              
+              {/* Controls & Status Bar */}
+              <div className="glass-card" style={{ padding: '20px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '15px' }}>
+                  
+                  {/* Selector for month/year */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <div className="form-group" style={{ margin: 0 }}>
+                      <label className="form-label" style={{ fontSize: '0.8rem', marginBottom: '4px' }}>Mese</label>
+                      <select 
+                        className="form-input" 
+                        value={timesheetMonth} 
+                        onChange={(e) => {
+                          const val = parseInt(e.target.value);
+                          setTimesheetMonth(val);
+                        }}
+                        style={{ height: '38px', padding: '0 10px', minWidth: '130px' }}
+                      >
+                        {MONTHS_IT.map((m, idx) => (
+                          <option key={m} value={idx + 1}>{m}</option>
+                        ))}
+                      </select>
+                    </div>
+                    
+                    <div className="form-group" style={{ margin: 0 }}>
+                      <label className="form-label" style={{ fontSize: '0.8rem', marginBottom: '4px' }}>Anno</label>
+                      <select 
+                        className="form-input" 
+                        value={timesheetYear} 
+                        onChange={(e) => {
+                          const val = parseInt(e.target.value);
+                          setTimesheetYear(val);
+                        }}
+                        style={{ height: '38px', padding: '0 10px', minWidth: '100px' }}
+                      >
+                        {[2024, 2025, 2026, 2027, 2028].map(y => (
+                          <option key={y} value={y}>{y}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* Status badge and metadata */}
+                  {timesheet && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
+                        <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Stato Rapportino</span>
+                        <span 
+                          className="badge"
+                          style={{
+                            fontSize: '0.85rem',
+                            fontWeight: '700',
+                            padding: '4px 10px',
+                            borderRadius: 'var(--radius-sm)',
+                            backgroundColor: timesheet.status === 'Bozza' ? 'rgba(14, 165, 233, 0.1)' :
+                                             timesheet.status === 'Inviato' ? 'rgba(245, 158, 11, 0.1)' :
+                                             timesheet.status === 'Approvato' ? 'rgba(16, 185, 129, 0.1)' :
+                                             'rgba(239, 68, 68, 0.1)',
+                            color: timesheet.status === 'Bozza' ? 'var(--color-primary)' :
+                                   timesheet.status === 'Inviato' ? 'var(--color-warning)' :
+                                   timesheet.status === 'Approvato' ? 'var(--color-success)' :
+                                   'var(--color-danger)',
+                            border: timesheet.status === 'Bozza' ? '1px solid rgba(14, 165, 233, 0.2)' :
+                                    timesheet.status === 'Inviato' ? '1px solid rgba(245, 158, 11, 0.2)' :
+                                    timesheet.status === 'Approvato' ? '1px solid rgba(16, 185, 129, 0.2)' :
+                                    '1px solid rgba(239, 68, 68, 0.2)'
+                          }}
+                        >
+                          {timesheet.status}
+                        </span>
+                      </div>
+                      
+                      {/* Submission/Actions */}
+                      {(timesheet.status === 'Bozza' || timesheet.status === 'Rifiutato') && (
+                        <div style={{ display: 'flex', gap: '10px' }}>
+                          <button 
+                            type="button" 
+                            className="btn btn-secondary" 
+                            style={{ height: '38px', padding: '0 16px', display: 'flex', alignItems: 'center', gap: '6px' }}
+                            onClick={() => handleSaveTimesheet(false)}
+                          >
+                            <RefreshCw size={14} />
+                            Salva Bozza
+                          </button>
+                          <button 
+                            type="button" 
+                            className="btn btn-primary" 
+                            style={{ height: '38px', padding: '0 16px', display: 'flex', alignItems: 'center', gap: '6px' }}
+                            onClick={handleSubmitTimesheet}
+                            disabled={timesheetSubmitting}
+                          >
+                            {timesheetSubmitting ? <RefreshCw size={14} className="animate-spin" /> : <Send size={14} />}
+                            Invia per Approvazione
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {/* Rejection / Validation notes */}
+                {timesheet && timesheet.status === 'Rifiutato' && (
+                  <div 
+                    style={{ 
+                      marginTop: '15px', 
+                      padding: '12px 16px', 
+                      backgroundColor: 'rgba(239, 68, 68, 0.05)', 
+                      border: '1px solid rgba(239, 68, 68, 0.2)', 
+                      borderRadius: 'var(--radius-md)',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '4px'
+                    }}
+                  >
+                    <span style={{ fontSize: '0.8rem', color: 'var(--color-danger)', fontWeight: '700' }}>⚠️ Rapportino Rifiutato</span>
+                    <p style={{ fontSize: '0.9rem', margin: 0, color: 'var(--text-primary)' }}>
+                      <strong>Validatore:</strong> {timesheet.validatedBy || 'N/A'}<br/>
+                      <strong>Motivazione:</strong> {timesheet.rejectionReason}
+                    </p>
+                  </div>
+                )}
+
+                {timesheet && timesheet.status === 'Approvato' && (
+                  <div 
+                    style={{ 
+                      marginTop: '15px', 
+                      padding: '12px 16px', 
+                      backgroundColor: 'rgba(16, 185, 129, 0.05)', 
+                      border: '1px solid rgba(16, 185, 129, 0.2)', 
+                      borderRadius: 'var(--radius-md)',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '4px'
+                    }}
+                  >
+                    <span style={{ fontSize: '0.8rem', color: 'var(--color-success)', fontWeight: '700' }}>✅ Rapportino Approvato</span>
+                    <p style={{ fontSize: '0.9rem', margin: 0, color: 'var(--text-primary)' }}>
+                      <strong>Approvato da:</strong> {timesheet.validatedBy || 'N/A'}<br/>
+                      <strong>Data convalida:</strong> {timesheet.validatedAt ? new Date(timesheet.validatedAt).toLocaleString('it-IT') : ''}
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              {/* Main timesheet split grid */}
+              {timesheetLoading ? (
+                <div style={{ textAlign: 'center', padding: '60px 0' }}>
+                  <RefreshCw size={36} className="animate-spin" style={{ color: 'var(--color-primary)' }} />
+                  <p style={{ marginTop: '15px', color: 'var(--text-secondary)' }}>Caricamento rapportino in corso...</p>
+                </div>
+              ) : timesheet ? (
+                <div className="timesheet-layout-grid" style={{ display: 'grid', gridTemplateColumns: '7fr 5fr', gap: '30px', alignItems: 'start' }}>
+                  
+                  {/* Left Side: Calendar Card */}
+                  <div className="glass-card" style={{ padding: '20px' }}>
+                    <div style={{ marginBottom: '15px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: '700' }}>
+                        Calendario di {MONTHS_IT[timesheetMonth - 1]} {timesheetYear}
+                      </h3>
+                      <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                        Seleziona un giorno per dettagliare l'attività
+                      </span>
+                    </div>
+
+                    {/* Calendar body */}
+                    <div className="calendar-heatmap-container" style={{ border: 'none', padding: 0 }}>
+                      <div className="calendar-grid-header" style={{ marginBottom: '8px' }}>
+                        {['Lun', 'Mar', 'Mer', 'Gio', 'Ven', 'Sab', 'Dom'].map(wd => (
+                          <div key={wd} className="calendar-grid-header-day" style={{ textAlign: 'center', fontWeight: '700', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                            {wd}
+                          </div>
+                        ))}
+                      </div>
+
+                      <div className="calendar-days-grid" style={{ gridGap: '8px' }}>
+                        {(() => {
+                          const cells = [];
+                          const startOffset = getStartOffset(timesheetYear, timesheetMonth - 1);
+                          for (let i = 0; i < startOffset; i++) {
+                            cells.push(<div key={`empty-${i}`} className="calendar-cell empty" style={{ minHeight: '85px', opacity: 0.1 }} />);
+                          }
+
+                          timesheet.days.forEach(day => {
+                            const dayDate = new Date(day.date);
+                            const dayOfWeek = dayDate.getDay();
+                            const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+                            const holidayName = getItalianHolidayName(dayDate);
+                            const isHoliday = !!holidayName;
+                            const isSelected = selectedTimesheetDay && selectedTimesheetDay.date === day.date;
+                            
+                            cells.push(
+                              <div 
+                                key={day.date}
+                                className={`calendar-cell date-picker-cell ${isWeekend ? 'is-weekend' : ''} ${isHoliday ? 'is-holiday' : ''} ${isSelected ? 'selected-start' : ''}`}
+                                onClick={() => setSelectedTimesheetDay(day)}
+                                style={{
+                                  cursor: 'pointer',
+                                  display: 'flex',
+                                  flexDirection: 'column',
+                                  justifyContent: 'space-between',
+                                  padding: '8px',
+                                  minHeight: '85px',
+                                  position: 'relative',
+                                  transition: 'all 0.2s ease',
+                                  borderRadius: 'var(--radius-sm)',
+                                  backgroundColor: isSelected ? 'rgba(14, 165, 233, 0.15)' :
+                                                   isHoliday ? 'rgba(239, 68, 68, 0.08)' :
+                                                   isWeekend ? 'rgba(255, 255, 255, 0.02)' : 'rgba(255, 255, 255, 0.05)',
+                                  border: isSelected ? '2px solid var(--color-primary)' : '1px solid var(--border-color)'
+                                }}
+                              >
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
+                                  <span style={{ fontWeight: '700', fontSize: '0.85rem', color: isSelected ? 'var(--color-primary)' : 'var(--text-primary)' }}>
+                                    {dayDate.getDate()}
+                                  </span>
+                                  {isHoliday && (
+                                    <span 
+                                      style={{ 
+                                        fontSize: '0.6rem', 
+                                        color: 'var(--color-danger)', 
+                                        fontWeight: '700',
+                                        backgroundColor: 'rgba(239, 68, 68, 0.15)',
+                                        padding: '1px 4px',
+                                        borderRadius: '3px' 
+                                      }} 
+                                      title={holidayName}
+                                    >
+                                      Festa
+                                    </span>
+                                  )}
+                                </div>
+
+                                <div style={{ flexGrow: 1, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', gap: '3px', marginTop: '6px' }}>
+                                  {day.type === 'Lavoro' ? (
+                                    day.hours > 0 ? (
+                                      <>
+                                        <span 
+                                          style={{ 
+                                            fontSize: '0.75rem', 
+                                            fontWeight: '600', 
+                                            color: '#f8fafc',
+                                            overflow: 'hidden', 
+                                            textOverflow: 'ellipsis', 
+                                            whiteSpace: 'nowrap'
+                                          }} 
+                                          title={day.projectName}
+                                        >
+                                          {day.projectName || <span style={{ color: 'var(--color-danger)', fontStyle: 'italic' }}>(progetto?)</span>}
+                                        </span>
+                                        <span style={{ fontSize: '0.65rem', color: 'var(--text-secondary)' }}>
+                                          {day.hours} ore
+                                        </span>
+                                      </>
+                                    ) : (
+                                      <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>
+                                        Non lavorato
+                                      </span>
+                                    )
+                                  ) : (
+                                    <span 
+                                      style={{ 
+                                        fontSize: '0.65rem', 
+                                        fontWeight: '700',
+                                        padding: '2px 4px', 
+                                        borderRadius: '3px',
+                                        textAlign: 'center',
+                                        alignSelf: 'flex-start',
+                                        backgroundColor: day.type === 'Ferie' ? 'rgba(16, 185, 129, 0.15)' : 
+                                                         day.type === 'Malattia' ? 'rgba(239, 68, 68, 0.15)' : 
+                                                         day.type === 'Permesso' ? 'rgba(245, 158, 11, 0.15)' : 'rgba(255,255,255,0.08)',
+                                        color: day.type === 'Ferie' ? 'var(--color-success)' : 
+                                               day.type === 'Malattia' ? 'var(--color-danger)' : 
+                                               day.type === 'Permesso' ? 'var(--color-warning)' : 'var(--text-secondary)',
+                                        border: '1px solid rgba(255,255,255,0.05)'
+                                      }}
+                                    >
+                                      {day.type === 'Assenza Generica' ? 'Assenza' : day.type} {day.type === 'Permesso' ? `(${day.hours}h)` : ''}
+                                    </span>
+                                  )}
+
+                                  {day.notes && (
+                                    <span 
+                                      style={{ 
+                                        fontSize: '0.65rem', 
+                                        color: 'var(--text-muted)', 
+                                        fontStyle: 'italic', 
+                                        overflow: 'hidden', 
+                                        textOverflow: 'ellipsis', 
+                                        whiteSpace: 'nowrap',
+                                        borderTop: '1px dashed rgba(255,255,255,0.03)',
+                                        paddingTop: '2px'
+                                      }}
+                                      title={day.notes}
+                                    >
+                                      📝 {day.notes}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          });
+
+                          return cells;
+                        })()}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Right Side: Day Details & Editor */}
+                  <div className="glass-card" style={{ padding: '20px' }}>
+                    {selectedTimesheetDay ? (
+                      <div>
+                        <h3 style={{ margin: '0 0 20px 0', fontSize: '1.1rem', fontWeight: '700', borderBottom: '1px solid var(--border-color)', paddingBottom: '10px' }}>
+                          Dettaglio Giorno: {(() => {
+                            const d = new Date(selectedTimesheetDay.date);
+                            return `${d.getDate()} ${MONTHS_IT[d.getMonth()]} ${d.getFullYear()}`;
+                          })()}
+                        </h3>
+
+                        {/* Warning if timesheet is read-only */}
+                        {(timesheet.status === 'Inviato' || timesheet.status === 'Approvato') && (
+                          <div 
+                            style={{ 
+                              marginBottom: '20px', 
+                              padding: '10px 12px', 
+                              backgroundColor: 'rgba(245, 158, 11, 0.05)', 
+                              border: '1px solid rgba(245, 158, 11, 0.2)', 
+                              borderRadius: 'var(--radius-sm)',
+                              fontSize: '0.8rem',
+                              color: 'var(--color-warning)'
+                            }}
+                          >
+                            ⚠️ Questo rapportino è in stato <strong>{timesheet.status}</strong>. Le modifiche sono disabilitate.
+                          </div>
+                        )}
+
+                        <form onSubmit={(e) => {
+                          e.preventDefault();
+                          handleUpdateDay(selectedTimesheetDay);
+                        }}>
+                          {/* Activity Type Selection */}
+                          <div className="form-group" style={{ marginBottom: '15px' }}>
+                            <label className="form-label">Tipo Attività</label>
+                            <select
+                              className="form-input"
+                              value={selectedTimesheetDay.type}
+                              disabled={timesheet.status === 'Inviato' || timesheet.status === 'Approvato'}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                let defaultHours = 8.0;
+                                let defaultProj = '';
+                                if (val === 'Lavoro') {
+                                  const tempDate = new Date(selectedTimesheetDay.date);
+                                  const isWeekend = tempDate.getDay() === 0 || tempDate.getDay() === 6;
+                                  const isHoliday = isItalianHoliday(tempDate);
+                                  if (isWeekend || isHoliday) {
+                                    defaultHours = 0;
+                                    defaultProj = 'Riposo';
+                                  } else {
+                                    defaultHours = 8.0;
+                                    defaultProj = '';
+                                  }
+                                } else if (val === 'Permesso') {
+                                  defaultHours = 2.0;
+                                  defaultProj = '';
+                                } else {
+                                  defaultHours = 8.0;
+                                  defaultProj = '';
+                                }
+
+                                setSelectedTimesheetDay(prev => ({
+                                  ...prev,
+                                  type: val,
+                                  projectName: defaultProj,
+                                  hours: defaultHours
+                                }));
+                              }}
+                            >
+                              <option value="Lavoro">Lavoro (Progetto)</option>
+                              <option value="Ferie">Ferie</option>
+                              <option value="Assenza Generica">Assenza Generica</option>
+                              <option value="Attività interne">Attività interne</option>
+                              <option value="Malattia">Malattia</option>
+                              <option value="Permesso">Permesso (Ore)</option>
+                            </select>
+                          </div>
+
+                          {/* Conditional Project Input */}
+                          {selectedTimesheetDay.type === 'Lavoro' && (
+                            <div className="form-group" style={{ marginBottom: '15px' }}>
+                              <label className="form-label">Nome Progetto / Commessa</label>
+                              <input 
+                                type="text"
+                                className="form-input"
+                                placeholder="Esempio: Progetto Alpha, Attività Cliente B..."
+                                value={selectedTimesheetDay.projectName}
+                                disabled={timesheet.status === 'Inviato' || timesheet.status === 'Approvato'}
+                                onChange={(e) => {
+                                  const val = e.target.value;
+                                  setSelectedTimesheetDay(prev => ({ ...prev, projectName: val }));
+                                }}
+                                required
+                              />
+                            </div>
+                          )}
+
+                          {/* Hours Input (Visible for Lavoro and Permesso) */}
+                          {(selectedTimesheetDay.type === 'Lavoro' || selectedTimesheetDay.type === 'Permesso') && (
+                            <div className="form-group" style={{ marginBottom: '15px' }}>
+                              <label className="form-label">
+                                {selectedTimesheetDay.type === 'Permesso' ? 'Numero Ore Permesso (0.5 - 8)' : 'Ore Lavorate (0 - 24)'}
+                              </label>
+                              <input 
+                                type="number"
+                                className="form-input"
+                                step="0.5"
+                                min={selectedTimesheetDay.type === 'Permesso' ? "0.5" : "0"}
+                                max={selectedTimesheetDay.type === 'Permesso' ? "8" : "24"}
+                                value={selectedTimesheetDay.hours}
+                                disabled={timesheet.status === 'Inviato' || timesheet.status === 'Approvato'}
+                                onChange={(e) => {
+                                  const val = parseFloat(e.target.value) || 0;
+                                  setSelectedTimesheetDay(prev => ({ ...prev, hours: val }));
+                                }}
+                                required
+                              />
+                            </div>
+                          )}
+
+                          {/* Optional notes */}
+                          <div className="form-group" style={{ marginBottom: '20px' }}>
+                            <label className="form-label">Note Giornaliere (Opzionale)</label>
+                            <textarea
+                              className="form-input"
+                              rows={3}
+                              placeholder="Note sull'attività o dettagli assenza..."
+                              value={selectedTimesheetDay.notes || ''}
+                              disabled={timesheet.status === 'Inviato' || timesheet.status === 'Approvato'}
+                              onChange={(e) => {
+                                const val = e.target.value.slice(0, 250);
+                                setSelectedTimesheetDay(prev => ({ ...prev, notes: val }));
+                              }}
+                              style={{ resize: 'none', width: '100%', fontFamily: 'inherit' }}
+                            />
+                            
+                            {/* Note char counter */}
+                            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '4px', fontSize: '0.75rem' }}>
+                              <span style={{ 
+                                fontWeight: '600',
+                                color: (selectedTimesheetDay.notes || '').length >= 240 ? 'var(--color-danger)' : 
+                                       (selectedTimesheetDay.notes || '').length >= 200 ? 'var(--color-warning)' : 
+                                       'var(--text-secondary)'
+                              }}>
+                                {(selectedTimesheetDay.notes || '').length} / 250 caratteri
+                              </span>
+                            </div>
+                          </div>
+
+                          {/* Submit changes to day */}
+                          {timesheet.status !== 'Inviato' && timesheet.status !== 'Approvato' && (
+                            <button type="submit" className="btn btn-primary" style={{ width: '100%', height: '40px' }}>
+                              Applica a questo giorno
+                            </button>
+                          )}
+                        </form>
+                      </div>
+                    ) : (
+                      <div style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '40px 0' }}>
+                        Nessun giorno selezionato. Clicca su un giorno nel calendario a sinistra per modificarlo.
+                      </div>
+                    )}
+                  </div>
+
+                </div>
+              ) : (
+                <div style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '40px 0' }}>
+                  Nessun dato del rapportino disponibile.
+                </div>
+              )}
+
+            </div>
+          )}
+
+          {/* TAB 9: APPROVAZIONI RAPPORTINI */}
+          {activeTab === 'timesheet-approvals' && currentUser && (currentUser.role === 'Admin' || currentUser.role === 'HR' || currentUser.role === 'Team Leader') && (
+            <div className="timesheet-approvals-tab-container" style={{ display: 'flex', flexDirection: 'column', gap: '30px' }}>
+              
+              <div className="glass-card" style={{ padding: '20px' }}>
+                <h3 style={{ margin: '0 0 10px 0', fontSize: '1.2rem', fontWeight: '800' }}>
+                  Rapportini Dipendenti da Validare
+                </h3>
+                <p style={{ margin: 0, fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
+                  In questa sezione sono elencati i rapportini mensili inviati dai collaboratori. Come <strong>{currentUser.role}</strong> puoi approvare o rifiutare le schede attività.
+                </p>
+              </div>
+
+              {pendingTimesheets.length === 0 ? (
+                <div className="glass-card" style={{ padding: '40px 0', textAlign: 'center', color: 'var(--text-muted)' }}>
+                  Non ci sono rapportini in attesa di validazione al momento.
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                  {pendingTimesheets.map(t => {
+                    const workingDays = t.days.filter(d => d.type === 'Lavoro' && d.hours > 0).length;
+                    const totalWorkHours = t.days.filter(d => d.type === 'Lavoro').reduce((sum, d) => sum + d.hours, 0);
+                    const holidayDays = t.days.filter(d => d.type === 'Ferie').length;
+                    const sicknessDays = t.days.filter(d => d.type === 'Malattia').length;
+                    const permissionHours = t.days.filter(d => d.type === 'Permesso').reduce((sum, d) => sum + d.hours, 0);
+                    
+                    const isExpanded = expandedCommId === `t-detail-${t.id}`;
+                    
+                    return (
+                      <div 
+                        key={t.id} 
+                        className="glass-card" 
+                        style={{ 
+                          border: '1px solid var(--border-color)', 
+                          overflow: 'hidden', 
+                          borderRadius: 'var(--radius-md)'
+                        }}
+                      >
+                        <div style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '15px' }}>
+                          {/* Header info */}
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '15px' }}>
+                            <div>
+                              <h4 style={{ margin: '0 0 4px 0', fontSize: '1.05rem', fontWeight: '700' }}>
+                                {t.userName}
+                              </h4>
+                              <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                                Rapportino di <strong>{MONTHS_IT[t.month - 1]} {t.year}</strong> (Inviato il {t.submittedAt ? new Date(t.submittedAt).toLocaleDateString('it-IT') : ''})
+                              </span>
+                            </div>
+                            
+                            <div style={{ display: 'flex', gap: '10px' }}>
+                              <button 
+                                type="button"
+                                className="btn btn-secondary btn-sm"
+                                style={{ padding: '6px 12px', fontSize: '0.8rem' }}
+                                onClick={() => setExpandedCommId(isExpanded ? null : `t-detail-${t.id}`)}
+                              >
+                                {isExpanded ? 'Nascondi Dettagli' : 'Visualizza Dettagli'}
+                              </button>
+                              <button 
+                                type="button"
+                                className="btn btn-primary btn-sm"
+                                style={{ padding: '6px 12px', fontSize: '0.8rem', backgroundColor: 'var(--color-success)', borderColor: 'var(--color-success)' }}
+                                onClick={() => handleApproveTimesheet(t.id)}
+                              >
+                                Approva
+                              </button>
+                              <button 
+                                type="button"
+                                className="btn btn-danger btn-sm"
+                                style={{ padding: '6px 12px', fontSize: '0.8rem' }}
+                                onClick={() => setTimesheetRejectionModal({ open: true, timesheetId: t.id, reason: '' })}
+                              >
+                                Rifiuta
+                              </button>
+                            </div>
+                          </div>
+
+                          {/* Quick Summary Metrics Pills */}
+                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', borderTop: '1px dashed rgba(255,255,255,0.03)', paddingTop: '12px' }}>
+                            <span className="badge" style={{ fontSize: '0.75rem', backgroundColor: 'rgba(255,255,255,0.03)', color: '#f8fafc' }}>
+                              💼 {workingDays} gg Lavoro ({totalWorkHours}h)
+                            </span>
+                            {holidayDays > 0 && (
+                              <span className="badge" style={{ fontSize: '0.75rem', backgroundColor: 'rgba(16, 185, 129, 0.1)', color: 'var(--color-success)' }}>
+                                🌴 {holidayDays} gg Ferie
+                              </span>
+                            )}
+                            {sicknessDays > 0 && (
+                              <span className="badge" style={{ fontSize: '0.75rem', backgroundColor: 'rgba(239, 68, 68, 0.1)', color: 'var(--color-danger)' }}>
+                                🤒 {sicknessDays} gg Malattia
+                              </span>
+                            )}
+                            {permissionHours > 0 && (
+                              <span className="badge" style={{ fontSize: '0.75rem', backgroundColor: 'rgba(245, 158, 11, 0.1)', color: 'var(--color-warning)' }}>
+                                ⏱️ {permissionHours}h Permessi
+                              </span>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Expanded details list */}
+                        {isExpanded && (
+                          <div style={{ backgroundColor: 'rgba(0, 0, 0, 0.2)', borderTop: '1px solid var(--border-color)', padding: '20px' }}>
+                            <h4 style={{ margin: '0 0 12px 0', fontSize: '0.85rem', fontWeight: '700', textTransform: 'uppercase', color: 'var(--text-secondary)', letterSpacing: '0.05em' }}>
+                              Dettaglio Giornaliero
+                            </h4>
+                            <div className="custom-table-container" style={{ maxHeight: '350px', overflowY: 'auto' }}>
+                              <table className="custom-table" style={{ width: '100%' }}>
+                                <thead>
+                                  <tr>
+                                    <th style={{ padding: '8px 12px', fontSize: '0.75rem' }}>Giorno</th>
+                                    <th style={{ padding: '8px 12px', fontSize: '0.75rem' }}>Tipo</th>
+                                    <th style={{ padding: '8px 12px', fontSize: '0.75rem' }}>Progetto/Attività</th>
+                                    <th style={{ padding: '8px 12px', fontSize: '0.75rem', textAlign: 'center' }}>Ore</th>
+                                    <th style={{ padding: '8px 12px', fontSize: '0.75rem' }}>Note</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {t.days.map(day => {
+                                    const d = new Date(day.date);
+                                    const dayOfWeek = d.getDay();
+                                    const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+                                    const isHoliday = isItalianHoliday(d);
+                                    
+                                    return (
+                                      <tr 
+                                        key={day.date}
+                                        style={{ 
+                                          backgroundColor: isHoliday ? 'rgba(239, 68, 68, 0.03)' : 
+                                                           isWeekend ? 'rgba(255, 255, 255, 0.01)' : 'transparent'
+                                        }}
+                                      >
+                                        <td style={{ padding: '8px 12px', fontSize: '0.8rem', fontWeight: '600' }}>
+                                          {d.getDate()}/{d.getMonth() + 1} ({['Dom', 'Lun', 'Mar', 'Mer', 'Gio', 'Ven', 'Sab'][d.getDay()]})
+                                        </td>
+                                        <td style={{ padding: '8px 12px', fontSize: '0.8rem' }}>
+                                          <span 
+                                            className="badge"
+                                            style={{
+                                              fontSize: '0.7rem',
+                                              padding: '2px 6px',
+                                              backgroundColor: day.type === 'Ferie' ? 'rgba(16, 185, 129, 0.1)' : 
+                                                               day.type === 'Malattia' ? 'rgba(239, 68, 68, 0.1)' : 
+                                                               day.type === 'Permesso' ? 'rgba(245, 158, 11, 0.1)' : 'rgba(255, 255, 255, 0.03)',
+                                              color: day.type === 'Ferie' ? 'var(--color-success)' : 
+                                                     day.type === 'Malattia' ? 'var(--color-danger)' : 
+                                                     day.type === 'Permesso' ? 'var(--color-warning)' : 'var(--text-primary)'
+                                            }}
+                                          >
+                                            {day.type}
+                                          </span>
+                                        </td>
+                                        <td style={{ padding: '8px 12px', fontSize: '0.8rem', color: '#f8fafc' }}>
+                                          {day.projectName || '—'}
+                                        </td>
+                                        <td style={{ padding: '8px 12px', fontSize: '0.8rem', textAlign: 'center', color: '#f8fafc' }}>
+                                          {day.hours}
+                                        </td>
+                                        <td style={{ padding: '8px 12px', fontSize: '0.8rem', color: 'var(--text-secondary)', maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={day.notes}>
+                                          {day.notes || '—'}
+                                        </td>
+                                      </tr>
+                                    );
+                                  })}
+                                </tbody>
+                              </table>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+
           {/* TAB 5: PERSONAL PROFILE DETAILS */}
           {activeTab === 'profile' && currentUser && (
             <div className="profile-page-container">
@@ -2307,7 +3253,7 @@ export default function App() {
                         className="btn btn-secondary" 
                         style={{ padding: '12px 24px' }}
                         onClick={() => {
-                          if (currentUser.role === 'Dipendente') setActiveTab('dashboard');
+                          if (currentUser.role === 'Dipendente' || currentUser.role === 'Team Leader') setActiveTab('dashboard');
                           else if (currentUser.role === 'Admin') setActiveTab('approvals');
                           else setActiveTab('coverage');
                         }}
@@ -2361,6 +3307,50 @@ export default function App() {
                 </button>
                 <button type="submit" className="btn btn-danger">
                   Rifiuta Richiesta
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: RIFIUTO RAPPORTINO (OBBLIGATORIO) */}
+      {timesheetRejectionModal.open && (
+        <div className="modal-backdrop">
+          <div className="modal-window">
+            <div className="modal-header">
+              <h3 style={{ fontSize: '1.1rem' }}>Rifiuta Rapportino</h3>
+              <XCircle 
+                size={20} 
+                style={{ cursor: 'pointer', color: 'var(--text-secondary)' }}
+                onClick={() => setTimesheetRejectionModal({ open: false, timesheetId: '', reason: '' })}
+              />
+            </div>
+            <form onSubmit={handleRejectTimesheet}>
+              <div className="modal-body">
+                <div className="form-group">
+                  <label className="form-label">Motivazione Rifiuto</label>
+                  <textarea 
+                    className="form-input"
+                    rows={4}
+                    placeholder="Inserisci qui la motivazione del rifiuto..."
+                    value={timesheetRejectionModal.reason}
+                    onChange={(e) => setTimesheetRejectionModal({ ...timesheetRejectionModal, reason: e.target.value })}
+                    style={{ resize: 'none', width: '100%', fontFamily: 'var(--font-sans)' }}
+                    required
+                  />
+                </div>
+              </div>
+              <div className="modal-footer">
+                <button 
+                  type="button" 
+                  className="btn btn-secondary" 
+                  onClick={() => setTimesheetRejectionModal({ open: false, timesheetId: '', reason: '' })}
+                >
+                  Annulla
+                </button>
+                <button type="submit" className="btn btn-danger">
+                  Rifiuta Rapportino
                 </button>
               </div>
             </form>

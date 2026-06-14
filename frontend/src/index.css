@@ -203,6 +203,13 @@ a:hover {
   background-color: var(--color-warning-bg);
   color: var(--color-warning);
 }
+.role-badge-pill.team-leader,
+.role-badge-pill.team\ leader {
+  background-color: rgba(14, 165, 233, 0.1);
+  color: var(--color-primary);
+  border: 1px solid rgba(14, 165, 233, 0.2);
+}
+
 
 /* Main Content Area */
 .main-area {

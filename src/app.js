@@ -13,6 +13,7 @@ const userController = require('./controllers/userController');
 const requestController = require('./controllers/requestController');
 const notificationController = require('./controllers/notificationController');
 const communicationController = require('./controllers/communicationController');
+const timesheetController = require('./controllers/timesheetController');
 
 const db = require('./database/db');
 const { recalculateBalances } = require('./database/balanceService');
@@ -108,6 +109,14 @@ app.post('/api/settings', requireAuth, requireRoles(['Admin', 'HR']), validate('
     res.status(500).json({ error: 'Errore nel salvataggio delle impostazioni' });
   }
 });
+
+// 6. Timesheets (Rapportini)
+app.get('/api/timesheets/my-month', requireAuth, timesheetController.getMyMonth);
+app.post('/api/timesheets/save', requireAuth, validate('saveTimesheet'), timesheetController.saveTimesheet);
+app.post('/api/timesheets/submit', requireAuth, timesheetController.submitTimesheet);
+app.get('/api/timesheets/pending', requireAuth, requireRoles(['Admin', 'HR', 'Team Leader']), timesheetController.getPendingTimesheets);
+app.post('/api/timesheets/:id/approve', requireAuth, requireRoles(['Admin', 'HR', 'Team Leader']), timesheetController.approveTimesheet);
+app.post('/api/timesheets/:id/reject', requireAuth, requireRoles(['Admin', 'HR', 'Team Leader']), validate('rejectTimesheet'), timesheetController.rejectTimesheet);
 
 // Serve frontend static files in production
 const frontendBuildPath = path.join(__dirname, '..', 'frontend', 'dist');
