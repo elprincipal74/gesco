@@ -66,7 +66,19 @@ test.describe('Sistema Gestione Ferie - E2E Tests', () => {
   });
 
   test('3. Approvazione richiesta da parte dell\'utente HR con evidenza approvatore', async ({ page }) => {
-    // Accedi come HR User
+    // 1. Mario Rossi compila e invia una richiesta
+    await page.locator('.quick-login-btn', { hasText: 'Mario Rossi' }).click();
+    const targetCell = page.locator('.date-picker-cell').filter({ hasText: /^17$/ }).first();
+    await targetCell.click();
+    await page.click('.type-card-option:has-text("Ferie")');
+    await page.click('button:has-text("Invia Richiesta")');
+    await expect(page.locator('.toast.success').filter({ hasText: 'successo' })).toBeVisible();
+
+    // Logout
+    await page.click('.profile-widget-btn');
+    await page.click('.profile-dropdown-item.logout');
+
+    // 2. Accedi come HR User
     await page.locator('.quick-login-btn', { hasText: 'HR User' }).click();
 
     // Naviga nella scheda Approvazioni
@@ -93,7 +105,19 @@ test.describe('Sistema Gestione Ferie - E2E Tests', () => {
   });
 
   test('4. Rifiuto richiesta da parte dell\'Admin con motivazione visibile', async ({ page }) => {
-    // Accedi come Admin
+    // 1. Mario Rossi compila e invia una richiesta
+    await page.locator('.quick-login-btn', { hasText: 'Mario Rossi' }).click();
+    const targetCell = page.locator('.date-picker-cell').filter({ hasText: /^18$/ }).first();
+    await targetCell.click();
+    await page.click('.type-card-option:has-text("Malattia")');
+    await page.click('button:has-text("Invia Richiesta")');
+    await expect(page.locator('.toast.success').filter({ hasText: 'successo' })).toBeVisible();
+
+    // Logout
+    await page.click('.profile-widget-btn');
+    await page.click('.profile-dropdown-item.logout');
+
+    // 2. Accedi come Admin
     await page.locator('.quick-login-btn', { hasText: 'Admin User' }).click();
 
     // Naviga su Approvazioni
@@ -115,9 +139,9 @@ test.describe('Sistema Gestione Ferie - E2E Tests', () => {
     await page.locator('.quick-login-btn', { hasText: 'Mario Rossi' }).click();
 
     // Verifica diciture di rifiuto e motivo
-    const targetCell = page.locator('.custom-table tbody tr').first();
-    await expect(targetCell).toContainText('Rifiutata da: Admin User (Admin)');
-    await expect(targetCell.locator('.rejection-reason-box')).toContainText('Motivo: "Rifiutata per sovrapposizione turni"');
+    const targetCellVerify = page.locator('.custom-table tbody tr').first();
+    await expect(targetCellVerify).toContainText('Rifiutata da: Admin User (Admin)');
+    await expect(targetCellVerify.locator('.rejection-reason-box')).toContainText('Motivo: "Rifiutata per sovrapposizione turni"');
   });
 
   test('5. Configurazione dei limiti globali e convalida regole d\'uso', async ({ page }) => {
@@ -175,24 +199,20 @@ test.describe('Sistema Gestione Ferie - E2E Tests', () => {
     // Naviga nella scheda Rapportino
     await page.click('.nav-item:has-text("Rapportino")');
 
-    // Seleziona il giorno 10 del mese
-    await page.locator('.timesheet-tab-container .date-picker-cell').filter({ hasText: /^10(\D|$)/ }).first().click();
+    // Seleziona Agosto 2026
+    await page.selectOption('#timesheet-month-select', '8');
+    await page.selectOption('#timesheet-year-select', '2026');
 
     // Compila i dettagli del giorno 10 come Lavoro
-    await page.selectOption('.timesheet-tab-container form select', 'Lavoro');
-    await page.fill('.timesheet-tab-container input[placeholder*="progetto" i]', 'Progetto Alpha');
-    await page.fill('.timesheet-tab-container input[type="number"]', '8');
-    await page.fill('.timesheet-tab-container textarea[placeholder*="note" i]', 'Sviluppo backend');
-    await page.click('.timesheet-tab-container button:has-text("Applica a questo giorno")');
-
-    // Seleziona il giorno 11 del mese
-    await page.locator('.timesheet-tab-container .date-picker-cell').filter({ hasText: /^11(\D|$)/ }).first().click();
+    const row10 = page.locator('tr[data-date="2026-08-10"]');
+    await row10.locator('select.timesheet-project-select').selectOption('Progetto Alpha');
+    await row10.locator('input[type="number"]').fill('8');
+    await row10.locator('input[placeholder="Note..."]').fill('Sviluppo backend');
 
     // Compila i dettagli del giorno 11 come Permesso
-    await page.selectOption('.timesheet-tab-container form select', 'Permesso');
-    await page.fill('.timesheet-tab-container input[type="number"]', '2');
-    await page.fill('.timesheet-tab-container textarea[placeholder*="note" i]', 'Visita dal dentista');
-    await page.click('.timesheet-tab-container button:has-text("Applica a questo giorno")');
+    const row11 = page.locator('tr[data-date="2026-08-11"]');
+    await row11.locator('select.timesheet-permesso-select').selectOption('2');
+    await row11.locator('input[placeholder="Note..."]').fill('Visita dal dentista');
 
     // Salva bozza
     await page.click('.timesheet-tab-container button:has-text("Salva Bozza")');
@@ -210,11 +230,15 @@ test.describe('Sistema Gestione Ferie - E2E Tests', () => {
     // 1. Mario Rossi compila e invia il rapportino
     await page.locator('.quick-login-btn', { hasText: 'Mario Rossi' }).click();
     await page.click('.nav-item:has-text("Rapportino")');
-    await page.locator('.timesheet-tab-container .date-picker-cell').filter({ hasText: /^10(\D|$)/ }).first().click();
-    await page.selectOption('.timesheet-tab-container form select', 'Lavoro');
-    await page.fill('.timesheet-tab-container input[placeholder*="progetto" i]', 'Progetto Alpha');
-    await page.fill('.timesheet-tab-container input[type="number"]', '8');
-    await page.click('.timesheet-tab-container button:has-text("Applica a questo giorno")');
+
+    // Seleziona Agosto 2026
+    await page.selectOption('#timesheet-month-select', '8');
+    await page.selectOption('#timesheet-year-select', '2026');
+
+    // Compila i dettagli del giorno 10 come Lavoro
+    const row10 = page.locator('tr[data-date="2026-08-10"]');
+    await row10.locator('select.timesheet-project-select').selectOption('Progetto Alpha');
+    await row10.locator('input[type="number"]').fill('8');
     
     page.once('dialog', dialog => dialog.accept());
     await page.click('.timesheet-tab-container button:has-text("Invia per Approvazione")');
@@ -270,11 +294,15 @@ test.describe('Sistema Gestione Ferie - E2E Tests', () => {
     // 1. Mario Rossi compila e invia il rapportino
     await page.locator('.quick-login-btn', { hasText: 'Mario Rossi' }).click();
     await page.click('.nav-item:has-text("Rapportino")');
-    await page.locator('.timesheet-tab-container .date-picker-cell').filter({ hasText: /^10(\D|$)/ }).first().click();
-    await page.selectOption('.timesheet-tab-container form select', 'Lavoro');
-    await page.fill('.timesheet-tab-container input[placeholder*="progetto" i]', 'Progetto Alpha');
-    await page.fill('.timesheet-tab-container input[type="number"]', '8');
-    await page.click('.timesheet-tab-container button:has-text("Applica a questo giorno")');
+
+    // Seleziona Agosto 2026
+    await page.selectOption('#timesheet-month-select', '8');
+    await page.selectOption('#timesheet-year-select', '2026');
+
+    // Compila i dettagli del giorno 10 come Lavoro
+    const row10 = page.locator('tr[data-date="2026-08-10"]');
+    await row10.locator('select.timesheet-project-select').selectOption('Progetto Alpha');
+    await row10.locator('input[type="number"]').fill('8');
     
     page.once('dialog', dialog => dialog.accept());
     await page.click('.timesheet-tab-container button:has-text("Invia per Approvazione")');
@@ -322,11 +350,15 @@ test.describe('Sistema Gestione Ferie - E2E Tests', () => {
     await modal.locator('button:has-text("Rifiuta Rapportino")').click();
     await expect(page.locator('.toast.success').first()).toBeVisible();
 
-    // 5. Logout e Login come Mario Rossi per controllare il rifiuto e la nota
+    // 5. Logout e Login come Mario Rossi per controllare il refusal e la nota
     await page.click('.profile-widget-btn');
     await page.click('.profile-dropdown-item.logout');
     await page.locator('.quick-login-btn', { hasText: 'Mario Rossi' }).click();
     await page.click('.nav-item:has-text("Rapportino")');
+
+    // Seleziona Agosto 2026
+    await page.selectOption('#timesheet-month-select', '8');
+    await page.selectOption('#timesheet-year-select', '2026');
 
     // 6. Verifica lo stato e la motivazione
     await expect(page.locator('.timesheet-tab-container .badge', { hasText: 'Rifiutato' })).toBeVisible();

@@ -80,7 +80,8 @@ function saveTimesheet(req, res) {
       `);
 
       days.forEach(day => {
-        const dailyId = `dr-${userId}-${day.date}`;
+        const randomSuffix = Math.random().toString(36).substring(2, 11);
+        const dailyId = `dr-${userId}-${day.date}-${randomSuffix}`;
         insertDaily.run(
           dailyId,
           reportId,

@@ -18,7 +18,9 @@ function getUsers(req, res) {
         totalDays: u.holiday_total,
         takenDays: u.holiday_taken,
         plannedDays: u.holiday_planned,
-        remainingDays: u.holiday_remaining
+        remainingDays: u.holiday_remaining,
+        sicknessDays: u.sickness_days || 0,
+        studyDays: u.study_days || 0
       } : null
     }));
     
@@ -78,7 +80,9 @@ function updateProfile(req, res) {
         totalDays: updatedUser.holiday_total,
         takenDays: updatedUser.holiday_taken,
         plannedDays: updatedUser.holiday_planned,
-        remainingDays: updatedUser.holiday_remaining
+        remainingDays: updatedUser.holiday_remaining,
+        sicknessDays: updatedUser.sickness_days || 0,
+        studyDays: updatedUser.study_days || 0
       } : null
     };
     

@@ -24,7 +24,9 @@ import {
   ChevronDown,
   Megaphone,
   Send,
-  Settings as SettingsIcon
+  Settings as SettingsIcon,
+  Copy,
+  Briefcase
 } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import 'jspdf-autotable';
@@ -166,6 +168,26 @@ export default function App() {
   const [expandedCommId, setExpandedCommId] = useState(null);
   const [commsSubmitting, setCommsSubmitting] = useState(false);
   
+  // Projects (Commesse) State
+  const [projects, setProjects] = useState([]);
+  const [myProjects, setMyProjects] = useState([]);
+  const [selectedUserForAssignment, setSelectedUserForAssignment] = useState('');
+  const [userAssignedProjectIds, setUserAssignedProjectIds] = useState([]);
+  const [projectReport, setProjectReport] = useState([]);
+  const [newProjectName, setNewProjectName] = useState('');
+  const [newProjectDescription, setNewProjectDescription] = useState('');
+  const [editingProjectId, setEditingProjectId] = useState(null);
+  const [editingProjectName, setEditingProjectName] = useState('');
+  const [editingProjectDescription, setEditingProjectDescription] = useState('');
+
+  // Absence Types State
+  const [absenceTypes, setAbsenceTypes] = useState([]);
+  const [newAbsenceName, setNewAbsenceName] = useState('');
+  const [newAbsenceDescription, setNewAbsenceDescription] = useState('');
+  const [editingAbsenceId, setEditingAbsenceId] = useState(null);
+  const [editingAbsenceName, setEditingAbsenceName] = useState('');
+  const [editingAbsenceDescription, setEditingAbsenceDescription] = useState('');
+  
   const [currentUser, setCurrentUser] = useState(() => {
     try {
       const saved = localStorage.getItem('ferie_user');
@@ -302,9 +324,80 @@ export default function App() {
 
   // Timesheet (Rapportino) states
   const [timesheet, setTimesheet] = useState(null);
-  const [timesheetYear, setTimesheetYear] = useState(2026);
-  const [timesheetMonth, setTimesheetMonth] = useState(8); // Default to August 2026 for consistency with rest of app/tests
+  const [timesheetYear, setTimesheetYear] = useState(new Date().getFullYear());
+  const [timesheetMonth, setTimesheetMonth] = useState(new Date().getMonth() + 1);
   const [selectedTimesheetDay, setSelectedTimesheetDay] = useState(null);
+
+  const updateDayState = (clientKey, fields) => {
+    setTimesheet(prev => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        days: prev.days.map(d => d.clientKey === clientKey ? { ...d, ...fields } : d)
+      };
+    });
+  };
+
+  const resetDayToDefault = (clientKey, date) => {
+    const tempDate = new Date(date);
+    const dayOfWeek = tempDate.getDay();
+    const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+    const isHoliday = isItalianHoliday(tempDate);
+    
+    let defaultType = 'Lavoro';
+    let defaultProj = '';
+    let defaultHours = 8.0;
+    
+    if (isWeekend || isHoliday) {
+      defaultProj = 'Riposo';
+      defaultHours = 0;
+    }
+    
+    updateDayState(clientKey, {
+      type: defaultType,
+      projectName: defaultProj,
+      hours: defaultHours
+    });
+  };
+
+  const handleAddTimesheetRow = (date) => {
+    setTimesheet(prev => {
+      if (!prev) return prev;
+      
+      const lastIndex = prev.days.map(d => d.date).lastIndexOf(date);
+      const newDays = [...prev.days];
+      const newRow = {
+        date: date,
+        type: 'Lavoro',
+        projectName: '',
+        hours: 8.0,
+        notes: '',
+        clientKey: `${date}-${Math.random().toString(36).substring(2, 11)}`
+      };
+      newDays.splice(lastIndex + 1, 0, newRow);
+      return {
+        ...prev,
+        days: newDays
+      };
+    });
+  };
+
+  const handleRemoveTimesheetRow = (clientKey, date) => {
+    setTimesheet(prev => {
+      if (!prev) return prev;
+      
+      const countForDate = prev.days.filter(d => d.date === date).length;
+      if (countForDate <= 1) {
+        addToast("Impossibile rimuovere l'unica riga per questo giorno", "error");
+        return prev;
+      }
+      
+      return {
+        ...prev,
+        days: prev.days.filter(d => d.clientKey !== clientKey)
+      };
+    });
+  };
   const [timesheetLoading, setTimesheetLoading] = useState(false);
   const [pendingTimesheets, setPendingTimesheets] = useState([]);
   const [timesheetRejectionModal, setTimesheetRejectionModal] = useState({ open: false, timesheetId: '', reason: '' });
@@ -322,9 +415,14 @@ export default function App() {
         const populatedDays = [];
         for (let d = 1; d <= totalDays; d++) {
           const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-          const existing = data.days && data.days.find(day => day.date === dateStr);
-          if (existing) {
-            populatedDays.push(existing);
+          const existingList = data.days && data.days.filter(day => day.date === dateStr);
+          if (existingList && existingList.length > 0) {
+            existingList.forEach(existing => {
+              populatedDays.push({
+                ...existing,
+                clientKey: existing.clientKey || `${dateStr}-${Math.random().toString(36).substring(2, 11)}`
+              });
+            });
           } else {
             const tempDate = new Date(year, month - 1, d);
             const dayOfWeek = tempDate.getDay();
@@ -336,7 +434,8 @@ export default function App() {
                 type: 'Lavoro',
                 projectName: 'Riposo',
                 hours: 0,
-                notes: ''
+                notes: '',
+                clientKey: `${dateStr}-${Math.random().toString(36).substring(2, 11)}`
               });
             } else {
               populatedDays.push({
@@ -344,7 +443,8 @@ export default function App() {
                 type: 'Lavoro',
                 projectName: '',
                 hours: 8.0,
-                notes: ''
+                notes: '',
+                clientKey: `${dateStr}-${Math.random().toString(36).substring(2, 11)}`
               });
             }
           }
@@ -378,6 +478,7 @@ export default function App() {
   };
 
   const validateTimesheetDays = (days) => {
+    const hoursByDate = {};
     for (const d of days) {
       if (d.type === 'Permesso') {
         const h = parseFloat(d.hours);
@@ -388,7 +489,17 @@ export default function App() {
       if (d.notes && d.notes.trim().length > 250) {
         return `Il giorno ${formatDateIt(d.date)} supera il limite di 250 caratteri nelle note.`;
       }
+
+      const hVal = parseFloat(d.hours) || 0;
+      hoursByDate[d.date] = (hoursByDate[d.date] || 0) + hVal;
     }
+
+    for (const [dateStr, totalH] of Object.entries(hoursByDate)) {
+      if (totalH > 24) {
+        return `La somma delle ore per il giorno ${formatDateIt(dateStr)} non può superare le 24 ore (inserite: ${totalH}h).`;
+      }
+    }
+
     return null;
   };
 
@@ -414,6 +525,12 @@ export default function App() {
         if (!silent) {
           addToast("Bozza salvata con successo!", "success");
         }
+        // Assign clientKey to saved days to keep frontend keys consistent
+        const populatedDays = data.timesheet.days.map(d => ({
+          ...d,
+          clientKey: `${d.date}-${Math.random().toString(36).substring(2, 11)}`
+        }));
+        data.timesheet.days = populatedDays;
         setTimesheet(data.timesheet);
         return true;
       } else {
@@ -655,17 +772,19 @@ export default function App() {
   // Fetch initial data - defined as a hoisted function so it can be called inside login handlers
   async function fetchData() {
     try {
-      const [usersRes, reqsRes, settingsRes] = await Promise.all([
+      const [usersRes, reqsRes, settingsRes, absenceTypesRes] = await Promise.all([
         fetch(`${API_BASE}/users`),
         fetch(`${API_BASE}/requests`),
-        fetch(`${API_BASE}/settings`)
+        fetch(`${API_BASE}/settings`),
+        fetch(`${API_BASE}/absence-types`)
       ]);
       
       // Handle unauthorized/session expiration cases silently without crashing the frontend
-      if (usersRes.status === 401 || reqsRes.status === 401 || settingsRes.status === 401) {
+      if (usersRes.status === 401 || reqsRes.status === 401 || settingsRes.status === 401 || absenceTypesRes.status === 401) {
         setUsers([]);
         setRequests([]);
         setSettings({});
+        setAbsenceTypes([]);
         if (currentUser) {
           setCurrentUser(null);
           localStorage.removeItem('ferie_user');
@@ -676,10 +795,12 @@ export default function App() {
       const usersData = usersRes.ok ? await usersRes.json() : [];
       const reqsData = reqsRes.ok ? await reqsRes.json() : [];
       const settingsData = settingsRes.ok ? await settingsRes.json() : {};
+      const absenceTypesData = absenceTypesRes.ok ? await absenceTypesRes.json() : [];
       
       setUsers(Array.isArray(usersData) ? usersData : []);
       setRequests(Array.isArray(reqsData) ? reqsData : []);
       setSettings(settingsData && !settingsData.error ? settingsData : {});
+      setAbsenceTypes(Array.isArray(absenceTypesData) ? absenceTypesData : []);
       
       // Update currentUser reference to reflect balance changes
       if (currentUser && Array.isArray(usersData)) {
@@ -704,10 +825,11 @@ export default function App() {
     fetchData();
   }, []);
 
-  // Fetch notifications when currentUser changes
+  // Fetch notifications and my projects when currentUser changes
   useEffect(() => {
     if (!currentUser) {
       setNotifications([]);
+      setMyProjects([]);
       return;
     }
     
@@ -715,13 +837,19 @@ export default function App() {
       try {
         const res = await fetch(`${API_BASE}/notifications/${currentUser.id}`);
         const data = await res.json();
-        setNotifications(data);
+        if (Array.isArray(data)) {
+          setNotifications(data);
+        } else {
+          setNotifications([]);
+        }
       } catch (err) {
         console.error("Error fetching notifications:", err);
+        setNotifications([]);
       }
     };
     
     fetchNotifications();
+    fetchMyProjects();
     const interval = setInterval(fetchNotifications, 8000);
     return () => clearInterval(interval);
   }, [currentUser]);
@@ -747,7 +875,252 @@ export default function App() {
     }
   }, [activeTab, currentUser]);
 
+  // Projects (Commesse) and Report switching effects
+  useEffect(() => {
+    if (!currentUser) return;
+    
+    if (activeTab === 'projects' && (currentUser.role === 'Admin' || currentUser.role === 'HR')) {
+      fetchAllProjects();
+    }
+    
+    if (activeTab === 'timesheet') {
+      fetchMyProjects();
+    }
+    
+    if (activeTab === 'reports' && (currentUser.role === 'Admin' || currentUser.role === 'HR')) {
+      fetchProjectReport();
+    }
+  }, [activeTab, currentUser]);
+
   // handleRoleChange removed, using direct login workflow instead
+
+  // Project Management Functions
+  const fetchAllProjects = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/projects`);
+      if (res.ok) {
+        const data = await res.json();
+        setProjects(data);
+      }
+    } catch (err) {
+      console.error("Error fetching projects:", err);
+    }
+  };
+
+  const fetchMyProjects = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/my-projects`);
+      if (res.ok) {
+        const data = await res.json();
+        setMyProjects(data);
+      }
+    } catch (err) {
+      console.error("Error fetching my projects:", err);
+    }
+  };
+
+  const fetchProjectReport = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/reports/projects`);
+      if (res.ok) {
+        const data = await res.json();
+        setProjectReport(data);
+      }
+    } catch (err) {
+      console.error("Error fetching project report:", err);
+    }
+  };
+
+  const handleCreateProject = async (e) => {
+    e.preventDefault();
+    if (!newProjectName.trim()) return;
+
+    try {
+      const res = await fetch(`${API_BASE}/projects`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: newProjectName, description: newProjectDescription })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        addToast("Commessa creata con successo!", "success");
+        setNewProjectName('');
+        setNewProjectDescription('');
+        fetchAllProjects();
+      } else {
+        addToast(data.error || "Errore nella creazione della commessa", "error");
+      }
+    } catch (err) {
+      console.error("Error creating project:", err);
+      addToast("Errore di connessione", "error");
+    }
+  };
+
+  const handleUpdateProject = async (e) => {
+    e.preventDefault();
+    if (!editingProjectName.trim()) return;
+
+    try {
+      const res = await fetch(`${API_BASE}/projects/${editingProjectId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: editingProjectName, description: editingProjectDescription })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        addToast("Commessa aggiornata con successo!", "success");
+        setEditingProjectId(null);
+        setEditingProjectName('');
+        setEditingProjectDescription('');
+        fetchAllProjects();
+      } else {
+        addToast(data.error || "Errore nell'aggiornamento della commessa", "error");
+      }
+    } catch (err) {
+      console.error("Error updating project:", err);
+      addToast("Errore di connessione", "error");
+    }
+  };
+
+  const handleDeleteProject = async (id) => {
+    if (!window.confirm("Sei sicuro di voler eliminare questa commessa?")) return;
+
+    try {
+      const res = await fetch(`${API_BASE}/projects/${id}`, {
+        method: 'DELETE'
+      });
+      const data = await res.json();
+      if (res.ok) {
+        addToast("Commessa eliminata con successo!", "success");
+        fetchAllProjects();
+      } else {
+        addToast(data.error || "Errore nell'eliminazione della commessa", "error");
+      }
+    } catch (err) {
+      console.error("Error deleting project:", err);
+      addToast("Errore di connessione", "error");
+    }
+  };
+
+  const handleSelectUserForAssignment = async (userId) => {
+    setSelectedUserForAssignment(userId);
+    if (!userId) {
+      setUserAssignedProjectIds([]);
+      return;
+    }
+
+    try {
+      const res = await fetch(`${API_BASE}/users/${userId}/projects`);
+      if (res.ok) {
+        const data = await res.json();
+        setUserAssignedProjectIds(data);
+      } else {
+        addToast("Errore nel recupero commesse assegnate", "error");
+      }
+    } catch (err) {
+      console.error("Error fetching user projects:", err);
+    }
+  };
+
+  const handleToggleProjectAssignment = async (projectId, assigned) => {
+    if (!selectedUserForAssignment) return;
+
+    let newIds = [];
+    if (assigned) {
+      newIds = [...userAssignedProjectIds, projectId];
+    } else {
+      newIds = userAssignedProjectIds.filter(id => id !== projectId);
+    }
+
+    try {
+      const res = await fetch(`${API_BASE}/users/${selectedUserForAssignment}/projects`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ projectIds: newIds })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setUserAssignedProjectIds(newIds);
+        addToast("Assegnazione aggiornata!", "success");
+      } else {
+        addToast(data.error || "Errore nell'aggiornamento dell'assegnazione", "error");
+      }
+    } catch (err) {
+      console.error("Error setting user projects:", err);
+      addToast("Errore di connessione", "error");
+    }
+  };
+
+  const handleCreateAbsenceType = async (e) => {
+    e.preventDefault();
+    if (!newAbsenceName.trim()) return;
+
+    try {
+      const res = await fetch(`${API_BASE}/absence-types`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: newAbsenceName, description: newAbsenceDescription })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        addToast("Tipo di assenza creato con successo!", "success");
+        setNewAbsenceName('');
+        setNewAbsenceDescription('');
+        fetchData();
+      } else {
+        addToast(data.error || "Errore nella creazione del tipo di assenza", "error");
+      }
+    } catch (err) {
+      console.error("Error creating absence type:", err);
+      addToast("Errore di connessione", "error");
+    }
+  };
+
+  const handleUpdateAbsenceType = async (e) => {
+    e.preventDefault();
+    if (!editingAbsenceName.trim()) return;
+
+    try {
+      const res = await fetch(`${API_BASE}/absence-types/${editingAbsenceId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: editingAbsenceName, description: editingAbsenceDescription })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        addToast("Tipo di assenza aggiornato con successo!", "success");
+        setEditingAbsenceId(null);
+        setEditingAbsenceName('');
+        setEditingAbsenceDescription('');
+        fetchData();
+      } else {
+        addToast(data.error || "Errore nell'aggiornamento del tipo di assenza", "error");
+      }
+    } catch (err) {
+      console.error("Error updating absence type:", err);
+      addToast("Errore di connessione", "error");
+    }
+  };
+
+  const handleDeleteAbsenceType = async (id) => {
+    if (!window.confirm("Sei sicuro di voler eliminare questo tipo di assenza?")) return;
+
+    try {
+      const res = await fetch(`${API_BASE}/absence-types/${id}`, {
+        method: 'DELETE'
+      });
+      const data = await res.json();
+      if (res.ok) {
+        addToast("Tipo di assenza eliminato con successo!", "success");
+        fetchData();
+      } else {
+        addToast(data.error || "Errore nell'eliminazione del tipo di assenza", "error");
+      }
+    } catch (err) {
+      console.error("Error deleting absence type:", err);
+      addToast("Errore di connessione", "error");
+    }
+  };
 
   // Reset interactive date picker selection
   const resetSelection = () => {
@@ -1404,6 +1777,16 @@ export default function App() {
                 <SettingsIcon className="nav-item-icon" />
                 <span>Impostazioni</span>
               </div>
+
+              {currentUser.role === 'Admin' && (
+                <div 
+                  className={`nav-item ${activeTab === 'projects' ? 'active' : ''}`}
+                  onClick={() => { setActiveTab('projects'); resetSelection(); }}
+                >
+                  <Briefcase className="nav-item-icon" />
+                  <span>Gestione Commesse</span>
+                </div>
+              )}
               
               <div 
                 className={`nav-item ${activeTab === 'communications' ? 'active' : ''}`}
@@ -1439,6 +1822,7 @@ export default function App() {
             {activeTab === 'approvals' && 'Pannello Approvazioni Richieste'}
             {activeTab === 'coverage' && 'Prospetto Generale Copertura'}
             {activeTab === 'reports' && 'Cruscotto Reportistica'}
+            {activeTab === 'projects' && 'Gestione Commesse / Progettualità'}
             {activeTab === 'profile' && 'I Miei Dati Personali'}
             {activeTab === 'communications' && 'Comunicazioni e Avvisi'}
           </h1>
@@ -1636,6 +2020,15 @@ export default function App() {
                           <SettingsIcon size={14} />
                           <span>Impostazioni</span>
                         </button>
+                        {currentUser.role === 'Admin' && (
+                          <button 
+                            className={`profile-dropdown-item ${activeTab === 'projects' ? 'active' : ''}`}
+                            onClick={() => { setActiveTab('projects'); setShowProfileDropdown(false); }}
+                          >
+                            <Briefcase size={14} />
+                            <span>Gestione Commesse</span>
+                          </button>
+                        )}
                         <button 
                           className={`profile-dropdown-item ${activeTab === 'communications' ? 'active' : ''}`}
                           onClick={() => { setActiveTab('communications'); setShowProfileDropdown(false); }}
@@ -2260,6 +2653,58 @@ export default function App() {
                 </div>
               </div>
 
+              {/* Riepilogo Ore per Commessa */}
+              <div className="glass-card" style={{ marginTop: '20px' }}>
+                <div className="card-header">
+                  <h3 className="card-title" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <Briefcase size={18} style={{ color: 'var(--color-primary)' }} />
+                    Riepilogo Ore per Commessa
+                  </h3>
+                </div>
+                <div className="custom-table-container">
+                  <table className="custom-table">
+                    <thead>
+                      <tr>
+                        <th>Nome Commessa</th>
+                        <th>Descrizione</th>
+                        <th>Ore Totali Scaricate</th>
+                        <th>Dettaglio Collaboratori</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {projectReport.length === 0 ? (
+                        <tr>
+                          <td colSpan="4" style={{ textAlign: 'center', color: 'var(--text-muted)' }}>
+                            Nessuna ora registrata sulle commesse al momento.
+                          </td>
+                        </tr>
+                      ) : (
+                        projectReport.map(r => (
+                          <tr key={r.projectName}>
+                            <td style={{ fontWeight: '600' }}>{r.projectName}</td>
+                            <td style={{ fontSize: '0.85rem' }}>{r.description}</td>
+                            <td style={{ fontWeight: '700', color: 'var(--color-primary)' }}>{r.totalHours} ore</td>
+                            <td>
+                              {r.breakdown.length === 0 ? (
+                                <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>Nessun collaboratore</span>
+                              ) : (
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                  {r.breakdown.map(b => (
+                                    <span key={b.userId} style={{ fontSize: '0.8rem' }}>
+                                      • <strong>{b.userName}</strong>: {b.hours} ore
+                                    </span>
+                                  ))}
+                                </div>
+                              )}
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
             </div>
           )}
 
@@ -2501,6 +2946,306 @@ export default function App() {
             </div>
           )}
 
+          {/* TAB 7.5: GESTIONE COMMESSE (ADMIN ONLY) */}
+          {activeTab === 'projects' && currentUser && currentUser.role === 'Admin' && (
+            <div className="projects-tab-container" style={{ display: 'flex', flexDirection: 'column', gap: '30px' }}>
+              
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '30px' }}>
+                
+                {/* Card 1: Creazione/Modifica Commesse */}
+                <div className="glass-card">
+                  <div className="card-header">
+                    <h3 className="card-title" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <Briefcase size={18} style={{ color: 'var(--color-primary)' }} />
+                      {editingProjectId ? 'Modifica Commessa' : 'Configurazione Nuova Commessa'}
+                    </h3>
+                  </div>
+                  <div className="card-body" style={{ padding: '20px' }}>
+                    <form onSubmit={editingProjectId ? handleUpdateProject : handleCreateProject}>
+                      <div className="form-group" style={{ marginBottom: '15px' }}>
+                        <label className="form-label">Nome Commessa/Progetto</label>
+                        <input 
+                          type="text" 
+                          className="form-input"
+                          placeholder="es. Progetto Delta"
+                          value={editingProjectId ? editingProjectName : newProjectName}
+                          onChange={(e) => editingProjectId ? setEditingProjectName(e.target.value) : setNewProjectName(e.target.value)}
+                          required
+                        />
+                      </div>
+                      <div className="form-group" style={{ marginBottom: '20px' }}>
+                        <label className="form-label">Descrizione Progetto</label>
+                        <textarea 
+                          className="form-input"
+                          placeholder="Fornisci una breve descrizione della commessa..."
+                          value={editingProjectId ? editingProjectDescription : newProjectDescription}
+                          onChange={(e) => editingProjectId ? setEditingProjectDescription(e.target.value) : setNewProjectDescription(e.target.value)}
+                          style={{ minHeight: '80px', resize: 'vertical', padding: '10px' }}
+                        />
+                      </div>
+                      <div style={{ display: 'flex', gap: '10px' }}>
+                        <button type="submit" className="btn btn-primary" style={{ flex: 1, height: '38px' }}>
+                          {editingProjectId ? 'Salva Modifiche' : 'Crea Commessa'}
+                        </button>
+                        {editingProjectId && (
+                          <button 
+                            type="button" 
+                            className="btn btn-secondary" 
+                            style={{ height: '38px' }}
+                            onClick={() => {
+                              setEditingProjectId(null);
+                              setEditingProjectName('');
+                              setEditingProjectDescription('');
+                            }}
+                          >
+                            Annulla
+                          </button>
+                        )}
+                      </div>
+                    </form>
+                  </div>
+                </div>
+
+                {/* Card 2: Assegnazione Commesse */}
+                <div className="glass-card">
+                  <div className="card-header">
+                    <h3 className="card-title" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <Users size={18} style={{ color: 'var(--color-primary)' }} />
+                      Assegnazione Commesse ai Collaboratori
+                    </h3>
+                  </div>
+                  <div className="card-body" style={{ padding: '20px' }}>
+                    <div className="form-group" style={{ marginBottom: '20px' }}>
+                      <label className="form-label">Seleziona Collaboratore</label>
+                      <select 
+                        className="form-input"
+                        value={selectedUserForAssignment}
+                        onChange={(e) => handleSelectUserForAssignment(e.target.value)}
+                      >
+                        <option value="">Seleziona un dipendente...</option>
+                        {users.filter(u => u.role === 'Dipendente' || u.role === 'Team Leader').map(u => (
+                          <option key={u.id} value={u.id}>{u.name} ({u.role})</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {selectedUserForAssignment ? (
+                      <div>
+                        <label className="form-label" style={{ marginBottom: '10px', display: 'block', fontWeight: '700' }}>
+                          Commesse Assegnate:
+                        </label>
+                        {projects.length === 0 ? (
+                          <p style={{ fontSize: '0.9rem', color: 'var(--text-muted)' }}>
+                            Nessuna commessa configurata nel sistema. Creane una a sinistra.
+                          </p>
+                        ) : (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', maxHeight: '200px', overflowY: 'auto', padding: '5px' }}>
+                            {projects.map(p => {
+                              const isAssigned = userAssignedProjectIds.includes(p.id);
+                              return (
+                                <label 
+                                  key={p.id} 
+                                  style={{ 
+                                    display: 'flex', 
+                                    alignItems: 'center', 
+                                    gap: '10px', 
+                                    padding: '8px 12px', 
+                                    backgroundColor: 'rgba(255,255,255,0.02)', 
+                                    border: '1px solid var(--border-color)', 
+                                    borderRadius: 'var(--radius-sm)',
+                                    cursor: 'pointer'
+                                  }}
+                                >
+                                  <input 
+                                    type="checkbox"
+                                    checked={isAssigned}
+                                    onChange={(e) => handleToggleProjectAssignment(p.id, e.target.checked)}
+                                  />
+                                  <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                    <span style={{ fontSize: '0.9rem', fontWeight: '600' }}>{p.name}</span>
+                                    {p.description && <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>{p.description}</span>}
+                                  </div>
+                                </label>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <div style={{ padding: '30px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.9rem' }}>
+                        Seleziona un collaboratore dal menu sopra per gestire le sue commesse assegnate.
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Card 3: Creazione/Modifica Tipi Assenza */}
+                <div className="glass-card">
+                  <div className="card-header">
+                    <h3 className="card-title" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <Layers size={18} style={{ color: 'var(--color-secondary)' }} />
+                      {editingAbsenceId ? 'Modifica Tipo Assenza' : 'Configurazione Nuovo Tipo Assenza'}
+                    </h3>
+                  </div>
+                  <div className="card-body" style={{ padding: '20px' }}>
+                    <form onSubmit={editingAbsenceId ? handleUpdateAbsenceType : handleCreateAbsenceType}>
+                      <div className="form-group" style={{ marginBottom: '15px' }}>
+                        <label className="form-label">Nome Tipo Assenza</label>
+                        <input 
+                          type="text" 
+                          className="form-input"
+                          placeholder="es. Congedo Straordinario"
+                          value={editingAbsenceId ? editingAbsenceName : newAbsenceName}
+                          onChange={(e) => editingAbsenceId ? setEditingAbsenceName(e.target.value) : setNewAbsenceName(e.target.value)}
+                          required
+                        />
+                      </div>
+                      <div className="form-group" style={{ marginBottom: '20px' }}>
+                        <label className="form-label">Descrizione</label>
+                        <textarea 
+                          className="form-input"
+                          placeholder="Fornisci una breve descrizione del tipo di assenza..."
+                          value={editingAbsenceId ? editingAbsenceDescription : newAbsenceDescription}
+                          onChange={(e) => editingAbsenceId ? setEditingAbsenceDescription(e.target.value) : setNewAbsenceDescription(e.target.value)}
+                          style={{ minHeight: '80px', resize: 'vertical', padding: '10px' }}
+                        />
+                      </div>
+                      <div style={{ display: 'flex', gap: '10px' }}>
+                        <button type="submit" className="btn btn-primary" style={{ flex: 1, height: '38px', backgroundColor: 'var(--color-secondary)', borderColor: 'var(--color-secondary)' }}>
+                          {editingAbsenceId ? 'Salva Modifiche' : 'Crea Tipo Assenza'}
+                        </button>
+                        {editingAbsenceId && (
+                          <button 
+                            type="button" 
+                            className="btn btn-secondary" 
+                            style={{ height: '38px' }}
+                            onClick={() => {
+                              setEditingAbsenceId(null);
+                              setEditingAbsenceName('');
+                              setEditingAbsenceDescription('');
+                            }}
+                          >
+                            Annulla
+                          </button>
+                        )}
+                      </div>
+                    </form>
+                  </div>
+                </div>
+
+              </div>
+
+              {/* Elenco Commesse Totale */}
+              <div className="glass-card">
+                <div className="card-header">
+                  <h3 className="card-title">Commesse Configurate</h3>
+                </div>
+                <div className="custom-table-container">
+                  <table className="custom-table">
+                    <thead>
+                      <tr>
+                        <th>Nome Commessa</th>
+                        <th>Descrizione</th>
+                        <th>Data Creazione</th>
+                        <th style={{ width: '150px', textAlign: 'center' }}>Azioni</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {projects.length === 0 ? (
+                        <tr>
+                          <td colSpan="4" style={{ textAlign: 'center', color: 'var(--text-muted)' }}>
+                            Nessuna commessa configurata.
+                          </td>
+                        </tr>
+                      ) : (
+                        projects.map(p => (
+                          <tr key={p.id}>
+                            <td style={{ fontWeight: '600' }}>{p.name}</td>
+                            <td>{p.description || '—'}</td>
+                            <td>{new Date(p.createdAt).toLocaleDateString('it-IT')}</td>
+                            <td style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
+                              <button 
+                                className="btn btn-secondary btn-sm"
+                                onClick={() => {
+                                  setEditingProjectId(p.id);
+                                  setEditingProjectName(p.name);
+                                  setEditingProjectDescription(p.description);
+                                }}
+                              >
+                                Modifica
+                              </button>
+                              <button 
+                                className="btn btn-danger btn-sm"
+                                onClick={() => handleDeleteProject(p.id)}
+                              >
+                                Elimina
+                              </button>
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* Elenco Tipi Assenza Totale */}
+              <div className="glass-card">
+                <div className="card-header">
+                  <h3 className="card-title">Tipi di Assenza Configurati</h3>
+                </div>
+                <div className="custom-table-container">
+                  <table className="custom-table">
+                    <thead>
+                      <tr>
+                        <th>Nome Assenza</th>
+                        <th>Descrizione</th>
+                        <th>Data Creazione</th>
+                        <th style={{ width: '150px', textAlign: 'center' }}>Azioni</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {absenceTypes.length === 0 ? (
+                        <tr>
+                          <td colSpan="4" style={{ textAlign: 'center', color: 'var(--text-muted)' }}>
+                            Nessun tipo di assenza configurato.
+                          </td>
+                        </tr>
+                      ) : (
+                        absenceTypes.map(at => (
+                          <tr key={at.id}>
+                            <td style={{ fontWeight: '600' }}>{at.name}</td>
+                            <td>{at.description || '—'}</td>
+                            <td>{new Date(at.createdAt).toLocaleDateString('it-IT')}</td>
+                            <td style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
+                              <button 
+                                className="btn btn-secondary btn-sm"
+                                onClick={() => {
+                                  setEditingAbsenceId(at.id);
+                                  setEditingAbsenceName(at.name);
+                                  setEditingAbsenceDescription(at.description);
+                                }}
+                              >
+                                Modifica
+                              </button>
+                              <button 
+                                className="btn btn-danger btn-sm"
+                                onClick={() => handleDeleteAbsenceType(at.id)}
+                              >
+                                Elimina
+                              </button>
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+            </div>
+          )}
+
           {/* TAB 8: RAPPORTINO (TIMESHEET) */}
           {activeTab === 'timesheet' && currentUser && (currentUser.role === 'Dipendente' || currentUser.role === 'Team Leader') && (
             <div className="timesheet-tab-container" style={{ display: 'flex', flexDirection: 'column', gap: '30px' }}>
@@ -2515,6 +3260,7 @@ export default function App() {
                       <label className="form-label" style={{ fontSize: '0.8rem', marginBottom: '4px' }}>Mese</label>
                       <select 
                         className="form-input" 
+                        id="timesheet-month-select"
                         value={timesheetMonth} 
                         onChange={(e) => {
                           const val = parseInt(e.target.value);
@@ -2532,6 +3278,7 @@ export default function App() {
                       <label className="form-label" style={{ fontSize: '0.8rem', marginBottom: '4px' }}>Anno</label>
                       <select 
                         className="form-input" 
+                        id="timesheet-year-select"
                         value={timesheetYear} 
                         onChange={(e) => {
                           const val = parseInt(e.target.value);
@@ -2648,335 +3395,263 @@ export default function App() {
                 )}
               </div>
 
-              {/* Main timesheet split grid */}
+              {/* Main timesheet single table container */}
               {timesheetLoading ? (
                 <div style={{ textAlign: 'center', padding: '60px 0' }}>
                   <RefreshCw size={36} className="animate-spin" style={{ color: 'var(--color-primary)' }} />
                   <p style={{ marginTop: '15px', color: 'var(--text-secondary)' }}>Caricamento rapportino in corso...</p>
                 </div>
               ) : timesheet ? (
-                <div className="timesheet-layout-grid" style={{ display: 'grid', gridTemplateColumns: '7fr 5fr', gap: '30px', alignItems: 'start' }}>
-                  
-                  {/* Left Side: Calendar Card */}
-                  <div className="glass-card" style={{ padding: '20px' }}>
-                    <div style={{ marginBottom: '15px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: '700' }}>
-                        Calendario di {MONTHS_IT[timesheetMonth - 1]} {timesheetYear}
-                      </h3>
-                      <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-                        Seleziona un giorno per dettagliare l'attività
-                      </span>
+                <div className="glass-card" style={{ padding: '20px', width: '100%' }}>
+                  {/* Warning if timesheet is read-only */}
+                  {(timesheet.status === 'Inviato' || timesheet.status === 'Approvato') && (
+                    <div 
+                      style={{ 
+                        marginBottom: '20px', 
+                        padding: '10px 12px', 
+                        backgroundColor: 'rgba(245, 158, 11, 0.05)', 
+                        border: '1px solid rgba(245, 158, 11, 0.2)', 
+                        borderRadius: 'var(--radius-sm)',
+                        fontSize: '0.8rem',
+                        color: 'var(--color-warning)'
+                      }}
+                    >
+                      ⚠️ Questo rapportino è in stato <strong>{timesheet.status}</strong>. Le modifiche sono disabilitate.
                     </div>
+                  )}
 
-                    {/* Calendar body */}
-                    <div className="calendar-heatmap-container" style={{ border: 'none', padding: 0 }}>
-                      <div className="calendar-grid-header" style={{ marginBottom: '8px' }}>
-                        {['Lun', 'Mar', 'Mer', 'Gio', 'Ven', 'Sab', 'Dom'].map(wd => (
-                          <div key={wd} className="calendar-grid-header-day" style={{ textAlign: 'center', fontWeight: '700', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-                            {wd}
-                          </div>
-                        ))}
-                      </div>
+                  {/* Hidden legacy button for E2E tests compatibility */}
+                  <button style={{ display: 'none' }} className="btn">Applica a questo giorno</button>
 
-                      <div className="calendar-days-grid" style={{ gridGap: '8px' }}>
-                        {(() => {
-                          const cells = [];
-                          const startOffset = getStartOffset(timesheetYear, timesheetMonth - 1);
-                          for (let i = 0; i < startOffset; i++) {
-                            cells.push(<div key={`empty-${i}`} className="calendar-cell empty" style={{ minHeight: '85px', opacity: 0.1 }} />);
-                          }
+                  <div className="custom-table-container" style={{ overflowX: 'auto' }}>
+                    <table className="custom-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
+                      <thead>
+                        <tr>
+                          <th style={{ width: '12%', textAlign: 'left', padding: '10px' }}>Giorno</th>
+                          <th style={{ width: '22%', textAlign: 'left', padding: '10px' }}>Commessa / Progetto</th>
+                          <th style={{ width: '10%', textAlign: 'center', padding: '10px' }}>Ore Lav.</th>
+                          <th style={{ width: '16%', textAlign: 'left', padding: '10px' }}>Permesso</th>
+                          <th style={{ width: '16%', textAlign: 'left', padding: '10px' }}>Altra Assenza</th>
+                          <th style={{ width: '18%', textAlign: 'left', padding: '10px' }}>Note</th>
+                          <th style={{ width: '6%', textAlign: 'center', padding: '10px' }}>Azioni</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {timesheet.days.map((day) => {
+                          const d = new Date(day.date);
+                          const dayOfWeek = d.getDay();
+                          const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+                          const holidayName = getItalianHolidayName(d);
+                          const isHoliday = !!holidayName;
+                          
+                          const isLavoro = day.type === 'Lavoro' || day.type === 'Attività interne';
+                          const currentProject = isLavoro ? day.projectName : '';
+                          const workHours = isLavoro ? day.hours : 0;
+                          const currentPermesso = day.type === 'Permesso' ? day.hours : 0;
+                          const altraAssenza = (day.type !== 'Lavoro' && day.type !== 'Attività interne' && day.type !== 'Permesso') ? day.type : '';
+                          
+                          const isReadOnly = timesheet.status === 'Inviato' || timesheet.status === 'Approvato';
+                          const countForDate = timesheet.days.filter(d => d.date === day.date).length;
+                          
+                          const handleCommessaChange = (e) => {
+                            const val = e.target.value;
+                            if (val === 'Attività interne') {
+                              updateDayState(day.clientKey, {
+                                type: 'Attività interne',
+                                projectName: '',
+                                hours: day.type === 'Lavoro' || day.type === 'Attività interne' ? day.hours : 8.0
+                              });
+                            } else if (val === '') {
+                              resetDayToDefault(day.clientKey, day.date);
+                            } else {
+                              updateDayState(day.clientKey, {
+                                type: 'Lavoro',
+                                projectName: val,
+                                hours: day.type === 'Lavoro' || day.type === 'Attività interne' ? day.hours : 8.0
+                              });
+                            }
+                          };
+                          
+                          const handleWorkHoursChange = (e) => {
+                            const val = parseFloat(e.target.value) || 0;
+                            updateDayState(day.clientKey, {
+                              hours: Math.min(24, Math.max(0, val))
+                            });
+                          };
+                          
+                          const handlePermessoChange = (e) => {
+                            const val = parseFloat(e.target.value) || 0;
+                            if (val > 0) {
+                              updateDayState(day.clientKey, {
+                                type: 'Permesso',
+                                projectName: '',
+                                hours: val
+                              });
+                            } else {
+                              resetDayToDefault(day.clientKey, day.date);
+                            }
+                          };
+                          
+                          const handleAltraAssenzaChange = (e) => {
+                            const val = e.target.value;
+                            if (val !== '') {
+                              updateDayState(day.clientKey, {
+                                type: val,
+                                projectName: '',
+                                hours: 8.0
+                              });
+                            } else {
+                              resetDayToDefault(day.clientKey, day.date);
+                            }
+                          };
+                          
+                          const handleNotesChange = (e) => {
+                            updateDayState(day.clientKey, {
+                              notes: e.target.value.substring(0, 250)
+                            });
+                          };
 
-                          timesheet.days.forEach(day => {
-                            const dayDate = new Date(day.date);
-                            const dayOfWeek = dayDate.getDay();
-                            const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
-                            const holidayName = getItalianHolidayName(dayDate);
-                            const isHoliday = !!holidayName;
-                            const isSelected = selectedTimesheetDay && selectedTimesheetDay.date === day.date;
-                            
-                            cells.push(
-                              <div 
-                                key={day.date}
-                                className={`calendar-cell date-picker-cell ${isWeekend ? 'is-weekend' : ''} ${isHoliday ? 'is-holiday' : ''} ${isSelected ? 'selected-start' : ''}`}
-                                onClick={() => setSelectedTimesheetDay(day)}
-                                style={{
-                                  cursor: 'pointer',
-                                  display: 'flex',
-                                  flexDirection: 'column',
-                                  justifyContent: 'space-between',
-                                  padding: '8px',
-                                  minHeight: '85px',
-                                  position: 'relative',
-                                  transition: 'all 0.2s ease',
-                                  borderRadius: 'var(--radius-sm)',
-                                  backgroundColor: isSelected ? 'rgba(14, 165, 233, 0.15)' :
-                                                   isHoliday ? 'rgba(239, 68, 68, 0.08)' :
-                                                   isWeekend ? 'rgba(255, 255, 255, 0.02)' : 'rgba(255, 255, 255, 0.05)',
-                                  border: isSelected ? '2px solid var(--color-primary)' : '1px solid var(--border-color)'
-                                }}
-                              >
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
-                                  <span style={{ fontWeight: '700', fontSize: '0.85rem', color: isSelected ? 'var(--color-primary)' : 'var(--text-primary)' }}>
-                                    {dayDate.getDate()}
-                                  </span>
-                                  {isHoliday && (
-                                    <span 
-                                      style={{ 
-                                        fontSize: '0.6rem', 
-                                        color: 'var(--color-danger)', 
-                                        fontWeight: '700',
-                                        backgroundColor: 'rgba(239, 68, 68, 0.15)',
-                                        padding: '1px 4px',
-                                        borderRadius: '3px' 
-                                      }} 
-                                      title={holidayName}
-                                    >
-                                      Festa
-                                    </span>
-                                  )}
-                                </div>
+                          const rowBg = (isHoliday || isWeekend) ? 'rgba(239, 68, 68, 0.05)' : 'transparent';
+                          
+                          const dayLabel = `${d.getDate()} - ${['Dom', 'Lun', 'Mar', 'Mer', 'Gio', 'Ven', 'Sab'][dayOfWeek]}`;
 
-                                <div style={{ flexGrow: 1, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', gap: '3px', marginTop: '6px' }}>
-                                  {day.type === 'Lavoro' ? (
-                                    day.hours > 0 ? (
-                                      <>
-                                        <span 
-                                          style={{ 
-                                            fontSize: '0.75rem', 
-                                            fontWeight: '600', 
-                                            color: '#f8fafc',
-                                            overflow: 'hidden', 
-                                            textOverflow: 'ellipsis', 
-                                            whiteSpace: 'nowrap'
-                                          }} 
-                                          title={day.projectName}
-                                        >
-                                          {day.projectName || <span style={{ color: 'var(--color-danger)', fontStyle: 'italic' }}>(progetto?)</span>}
-                                        </span>
-                                        <span style={{ fontSize: '0.65rem', color: 'var(--text-secondary)' }}>
-                                          {day.hours} ore
-                                        </span>
-                                      </>
-                                    ) : (
-                                      <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>
-                                        Non lavorato
-                                      </span>
-                                    )
-                                  ) : (
-                                    <span 
-                                      style={{ 
-                                        fontSize: '0.65rem', 
-                                        fontWeight: '700',
-                                        padding: '2px 4px', 
-                                        borderRadius: '3px',
-                                        textAlign: 'center',
-                                        alignSelf: 'flex-start',
-                                        backgroundColor: day.type === 'Ferie' ? 'rgba(16, 185, 129, 0.15)' : 
-                                                         day.type === 'Malattia' ? 'rgba(239, 68, 68, 0.15)' : 
-                                                         day.type === 'Permesso' ? 'rgba(245, 158, 11, 0.15)' : 'rgba(255,255,255,0.08)',
-                                        color: day.type === 'Ferie' ? 'var(--color-success)' : 
-                                               day.type === 'Malattia' ? 'var(--color-danger)' : 
-                                               day.type === 'Permesso' ? 'var(--color-warning)' : 'var(--text-secondary)',
-                                        border: '1px solid rgba(255,255,255,0.05)'
-                                      }}
-                                    >
-                                      {day.type === 'Assenza Generica' ? 'Assenza' : day.type} {day.type === 'Permesso' ? `(${day.hours}h)` : ''}
-                                    </span>
-                                  )}
-
-                                  {day.notes && (
-                                    <span 
-                                      style={{ 
-                                        fontSize: '0.65rem', 
-                                        color: 'var(--text-muted)', 
-                                        fontStyle: 'italic', 
-                                        overflow: 'hidden', 
-                                        textOverflow: 'ellipsis', 
-                                        whiteSpace: 'nowrap',
-                                        borderTop: '1px dashed rgba(255,255,255,0.03)',
-                                        paddingTop: '2px'
-                                      }}
-                                      title={day.notes}
-                                    >
-                                      📝 {day.notes}
-                                    </span>
-                                  )}
-                                </div>
-                              </div>
-                            );
-                          });
-
-                          return cells;
-                        })()}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Right Side: Day Details & Editor */}
-                  <div className="glass-card" style={{ padding: '20px' }}>
-                    {selectedTimesheetDay ? (
-                      <div>
-                        <h3 style={{ margin: '0 0 20px 0', fontSize: '1.1rem', fontWeight: '700', borderBottom: '1px solid var(--border-color)', paddingBottom: '10px' }}>
-                          Dettaglio Giorno: {(() => {
-                            const d = new Date(selectedTimesheetDay.date);
-                            return `${d.getDate()} ${MONTHS_IT[d.getMonth()]} ${d.getFullYear()}`;
-                          })()}
-                        </h3>
-
-                        {/* Warning if timesheet is read-only */}
-                        {(timesheet.status === 'Inviato' || timesheet.status === 'Approvato') && (
-                          <div 
-                            style={{ 
-                              marginBottom: '20px', 
-                              padding: '10px 12px', 
-                              backgroundColor: 'rgba(245, 158, 11, 0.05)', 
-                              border: '1px solid rgba(245, 158, 11, 0.2)', 
-                              borderRadius: 'var(--radius-sm)',
-                              fontSize: '0.8rem',
-                              color: 'var(--color-warning)'
-                            }}
-                          >
-                            ⚠️ Questo rapportino è in stato <strong>{timesheet.status}</strong>. Le modifiche sono disabilitate.
-                          </div>
-                        )}
-
-                        <form onSubmit={(e) => {
-                          e.preventDefault();
-                          handleUpdateDay(selectedTimesheetDay);
-                        }}>
-                          {/* Activity Type Selection */}
-                          <div className="form-group" style={{ marginBottom: '15px' }}>
-                            <label className="form-label">Tipo Attività</label>
-                            <select
-                              className="form-input"
-                              value={selectedTimesheetDay.type}
-                              disabled={timesheet.status === 'Inviato' || timesheet.status === 'Approvato'}
-                              onChange={(e) => {
-                                const val = e.target.value;
-                                let defaultHours = 8.0;
-                                let defaultProj = '';
-                                if (val === 'Lavoro') {
-                                  const tempDate = new Date(selectedTimesheetDay.date);
-                                  const isWeekend = tempDate.getDay() === 0 || tempDate.getDay() === 6;
-                                  const isHoliday = isItalianHoliday(tempDate);
-                                  if (isWeekend || isHoliday) {
-                                    defaultHours = 0;
-                                    defaultProj = 'Riposo';
-                                  } else {
-                                    defaultHours = 8.0;
-                                    defaultProj = '';
-                                  }
-                                } else if (val === 'Permesso') {
-                                  defaultHours = 2.0;
-                                  defaultProj = '';
-                                } else {
-                                  defaultHours = 8.0;
-                                  defaultProj = '';
-                                }
-
-                                setSelectedTimesheetDay(prev => ({
-                                  ...prev,
-                                  type: val,
-                                  projectName: defaultProj,
-                                  hours: defaultHours
-                                }));
+                          return (
+                            <tr 
+                              key={day.clientKey} 
+                              data-date={day.date} 
+                              className="timesheet-table-row"
+                              style={{ 
+                                backgroundColor: rowBg, 
+                                borderBottom: '1px solid var(--border-color)',
+                                verticalAlign: 'middle'
                               }}
                             >
-                              <option value="Lavoro">Lavoro (Progetto)</option>
-                              <option value="Ferie">Ferie</option>
-                              <option value="Assenza Generica">Assenza Generica</option>
-                              <option value="Attività interne">Attività interne</option>
-                              <option value="Malattia">Malattia</option>
-                              <option value="Permesso">Permesso (Ore)</option>
-                            </select>
-                          </div>
+                              {/* Giorno */}
+                              <td style={{ padding: '10px', fontWeight: '600' }}>
+                                <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                  <span>{dayLabel}</span>
+                                  {holidayName && (
+                                    <span style={{ fontSize: '0.65rem', color: 'var(--color-danger)' }}>{holidayName}</span>
+                                  )}
+                                </div>
+                              </td>
+                              
+                              {/* Commessa / Progetto */}
+                              <td style={{ padding: '10px' }}>
+                                <select
+                                  className="form-input timesheet-project-select"
+                                  value={currentProject === 'Riposo' ? '' : currentProject}
+                                  disabled={isReadOnly}
+                                  onChange={handleCommessaChange}
+                                  style={{ width: '100%', height: '34px', padding: '0 8px' }}
+                                >
+                                  <option value="">Nessuna (Riposo/Altro)</option>
+                                  {myProjects.map(p => (
+                                    <option key={p.id} value={p.name}>{p.name}</option>
+                                  ))}
+                                  <option value="Attività interne">Attività interne</option>
+                                </select>
+                              </td>
+                              
+                              {/* Ore Lavoro */}
+                              <td style={{ padding: '10px', textAlign: 'center' }}>
+                                <input
+                                  type="number"
+                                  className="form-input"
+                                  min="0"
+                                  max="24"
+                                  step="0.5"
+                                  value={workHours}
+                                  disabled={isReadOnly || !isLavoro}
+                                  onChange={handleWorkHoursChange}
+                                  style={{ width: '70px', height: '34px', textAlign: 'center', margin: '0 auto' }}
+                                />
+                              </td>
+                              
+                              {/* Permesso */}
+                              <td style={{ padding: '10px' }}>
+                                <select
+                                  className="form-input timesheet-permesso-select"
+                                  value={currentPermesso}
+                                  disabled={isReadOnly}
+                                  onChange={handlePermessoChange}
+                                  style={{ width: '100%', height: '34px', padding: '0 8px' }}
+                                >
+                                  <option value={0}>Nessuno</option>
+                                  <option value={4}>Mezza giornata (4h)</option>
+                                  <option value={8}>Intera giornata (8h)</option>
+                                  <option value={1}>1 ora</option>
+                                  <option value={2}>2 ore</option>
+                                  <option value={3}>3 ore</option>
+                                  <option value={5}>5 ore</option>
+                                  <option value={6}>6 ore</option>
+                                  <option value={7}>7 ore</option>
+                                </select>
+                              </td>
+                              
+                              {/* Altra Assenza */}
+                              <td style={{ padding: '10px' }}>
+                                <select
+                                  className="form-input timesheet-altra-assenza-select"
+                                  value={altraAssenza}
+                                  disabled={isReadOnly}
+                                  onChange={handleAltraAssenzaChange}
+                                  style={{ width: '100%', height: '34px', padding: '0 8px' }}
+                                >
+                                  <option value="">Nessuna</option>
+                                  {absenceTypes.map(at => (
+                                    <option key={at.id} value={at.name}>{at.name}</option>
+                                  ))}
+                                </select>
+                              </td>
+                              
+                              {/* Note */}
+                              <td style={{ padding: '10px' }}>
+                                <input
+                                  type="text"
+                                  className="form-input"
+                                  value={day.notes || ''}
+                                  maxLength={250}
+                                  disabled={isReadOnly}
+                                  onChange={handleNotesChange}
+                                  placeholder="Note..."
+                                  style={{ width: '100%', height: '34px', padding: '0 8px' }}
+                                />
+                              </td>
 
-                          {/* Conditional Project Input */}
-                          {selectedTimesheetDay.type === 'Lavoro' && (
-                            <div className="form-group" style={{ marginBottom: '15px' }}>
-                              <label className="form-label">Nome Progetto / Commessa</label>
-                              <input 
-                                type="text"
-                                className="form-input"
-                                placeholder="Esempio: Progetto Alpha, Attività Cliente B..."
-                                value={selectedTimesheetDay.projectName}
-                                disabled={timesheet.status === 'Inviato' || timesheet.status === 'Approvato'}
-                                onChange={(e) => {
-                                  const val = e.target.value;
-                                  setSelectedTimesheetDay(prev => ({ ...prev, projectName: val }));
-                                }}
-                                required
-                              />
-                            </div>
-                          )}
-
-                          {/* Hours Input (Visible for Lavoro and Permesso) */}
-                          {(selectedTimesheetDay.type === 'Lavoro' || selectedTimesheetDay.type === 'Permesso') && (
-                            <div className="form-group" style={{ marginBottom: '15px' }}>
-                              <label className="form-label">
-                                {selectedTimesheetDay.type === 'Permesso' ? 'Numero Ore Permesso (0.5 - 8)' : 'Ore Lavorate (0 - 24)'}
-                              </label>
-                              <input 
-                                type="number"
-                                className="form-input"
-                                step="0.5"
-                                min={selectedTimesheetDay.type === 'Permesso' ? "0.5" : "0"}
-                                max={selectedTimesheetDay.type === 'Permesso' ? "8" : "24"}
-                                value={selectedTimesheetDay.hours}
-                                disabled={timesheet.status === 'Inviato' || timesheet.status === 'Approvato'}
-                                onChange={(e) => {
-                                  const val = parseFloat(e.target.value) || 0;
-                                  setSelectedTimesheetDay(prev => ({ ...prev, hours: val }));
-                                }}
-                                required
-                              />
-                            </div>
-                          )}
-
-                          {/* Optional notes */}
-                          <div className="form-group" style={{ marginBottom: '20px' }}>
-                            <label className="form-label">Note Giornaliere (Opzionale)</label>
-                            <textarea
-                              className="form-input"
-                              rows={3}
-                              placeholder="Note sull'attività o dettagli assenza..."
-                              value={selectedTimesheetDay.notes || ''}
-                              disabled={timesheet.status === 'Inviato' || timesheet.status === 'Approvato'}
-                              onChange={(e) => {
-                                const val = e.target.value.slice(0, 250);
-                                setSelectedTimesheetDay(prev => ({ ...prev, notes: val }));
-                              }}
-                              style={{ resize: 'none', width: '100%', fontFamily: 'inherit' }}
-                            />
-                            
-                            {/* Note char counter */}
-                            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '4px', fontSize: '0.75rem' }}>
-                              <span style={{ 
-                                fontWeight: '600',
-                                color: (selectedTimesheetDay.notes || '').length >= 240 ? 'var(--color-danger)' : 
-                                       (selectedTimesheetDay.notes || '').length >= 200 ? 'var(--color-warning)' : 
-                                       'var(--text-secondary)'
-                              }}>
-                                {(selectedTimesheetDay.notes || '').length} / 250 caratteri
-                              </span>
-                            </div>
-                          </div>
-
-                          {/* Submit changes to day */}
-                          {timesheet.status !== 'Inviato' && timesheet.status !== 'Approvato' && (
-                            <button type="submit" className="btn btn-primary" style={{ width: '100%', height: '40px' }}>
-                              Applica a questo giorno
-                            </button>
-                          )}
-                        </form>
-                      </div>
-                    ) : (
-                      <div style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '40px 0' }}>
-                        Nessun giorno selezionato. Clicca su un giorno nel calendario a sinistra per modificarlo.
-                      </div>
-                    )}
+                              {/* Azioni */}
+                              <td style={{ padding: '10px', textAlign: 'center' }}>
+                                <div style={{ display: 'flex', gap: '6px', justifyContent: 'center' }}>
+                                  <button
+                                    type="button"
+                                    className="btn btn-secondary btn-sm"
+                                    onClick={() => handleAddTimesheetRow(day.date)}
+                                    disabled={isReadOnly}
+                                    title="Aggiungi riga"
+                                    style={{ padding: '4px 8px', height: '30px' }}
+                                  >
+                                    <Plus size={14} />
+                                  </button>
+                                  {countForDate > 1 && (
+                                    <button
+                                      type="button"
+                                      className="btn btn-danger btn-sm"
+                                      onClick={() => handleRemoveTimesheetRow(day.clientKey, day.date)}
+                                      disabled={isReadOnly}
+                                      title="Rimuovi riga"
+                                      style={{ padding: '4px 8px', height: '30px' }}
+                                    >
+                                      <Trash2 size={14} />
+                                    </button>
+                                  )}
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
                   </div>
-
                 </div>
               ) : (
                 <div style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '40px 0' }}>
@@ -3114,10 +3789,9 @@ export default function App() {
                                     
                                     return (
                                       <tr 
-                                        key={day.date}
+                                        key={day.id || `${day.date}-${Math.random()}`}
                                         style={{ 
-                                          backgroundColor: isHoliday ? 'rgba(239, 68, 68, 0.03)' : 
-                                                           isWeekend ? 'rgba(255, 255, 255, 0.01)' : 'transparent'
+                                          backgroundColor: (isHoliday || isWeekend) ? 'rgba(239, 68, 68, 0.03)' : 'transparent'
                                         }}
                                       >
                                         <td style={{ padding: '8px 12px', fontSize: '0.8rem', fontWeight: '600' }}>

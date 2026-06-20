@@ -29,6 +29,7 @@ Funzionalità: Gestione Richieste di Assenza (Ferie, Malattia, Permesso Studio)
   Scenario: Tentativo di richiesta ferie superiore al saldo disponibile
     Quando seleziono l'intervallo dal "2026-08-01" al "2026-09-15" dal calendario (più di 26 giorni lavorativi)
     E seleziono la tipologia di assenza "Ferie"
+    E clicco sul pulsante "Invia Richiesta"
     Allora il sistema mostra un messaggio di errore "Saldo ferie insufficiente"
     E il pulsante "Invia Richiesta" viene bloccato o la richiesta viene rifiutata dal client
 
@@ -50,5 +51,6 @@ Funzionalità: Gestione Richieste di Assenza (Ferie, Malattia, Permesso Studio)
   Scenario: Tentativo di richiesta permesso studio oltre il limite massimo
     Quando seleziono l'intervallo dal "2026-08-10" al "2026-08-18" dal calendario (6 giorni lavorativi)
     E seleziono la tipologia di assenza "Permesso Studio"
+    E clicco sul pulsante "Invia Richiesta"
     Allora il sistema mostra un messaggio di errore "La richiesta di Permesso Studio supera il limite massimo consentito"
     E la richiesta non viene inviata

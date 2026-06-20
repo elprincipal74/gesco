@@ -27,7 +27,7 @@ async function authenticate(req, res, next) {
 
     // Fetch user details
     const user = db.prepare(`
-      SELECT id, name, email, role, phone, address, iban, holiday_total, holiday_taken, holiday_planned, holiday_remaining
+      SELECT id, name, email, role, phone, address, iban, holiday_total, holiday_taken, holiday_planned, holiday_remaining, sickness_days, study_days
       FROM users WHERE id = ?
     `).get(session.userId);
 
@@ -51,7 +51,9 @@ async function authenticate(req, res, next) {
         totalDays: user.holiday_total,
         takenDays: user.holiday_taken,
         plannedDays: user.holiday_planned,
-        remainingDays: user.holiday_remaining
+        remainingDays: user.holiday_remaining,
+        sicknessDays: user.sickness_days || 0,
+        studyDays: user.study_days || 0
       }
     };
 

@@ -51,7 +51,9 @@ function login(req, res) {
         totalDays: user.holiday_total,
         takenDays: user.holiday_taken,
         plannedDays: user.holiday_planned,
-        remainingDays: user.holiday_remaining
+        remainingDays: user.holiday_remaining,
+        sicknessDays: user.sickness_days || 0,
+        studyDays: user.study_days || 0
       }
     };
     

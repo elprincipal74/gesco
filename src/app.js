@@ -14,6 +14,8 @@ const requestController = require('./controllers/requestController');
 const notificationController = require('./controllers/notificationController');
 const communicationController = require('./controllers/communicationController');
 const timesheetController = require('./controllers/timesheetController');
+const projectController = require('./controllers/projectController');
+const absenceTypeController = require('./controllers/absenceTypeController');
 
 const db = require('./database/db');
 const { recalculateBalances } = require('./database/balanceService');
@@ -117,6 +119,22 @@ app.post('/api/timesheets/submit', requireAuth, timesheetController.submitTimesh
 app.get('/api/timesheets/pending', requireAuth, requireRoles(['Admin', 'HR', 'Team Leader']), timesheetController.getPendingTimesheets);
 app.post('/api/timesheets/:id/approve', requireAuth, requireRoles(['Admin', 'HR', 'Team Leader']), timesheetController.approveTimesheet);
 app.post('/api/timesheets/:id/reject', requireAuth, requireRoles(['Admin', 'HR', 'Team Leader']), validate('rejectTimesheet'), timesheetController.rejectTimesheet);
+
+// 7. Projects (Commesse)
+app.get('/api/projects', requireAuth, requireRoles(['Admin', 'HR']), projectController.getProjects);
+app.post('/api/projects', requireAuth, requireRoles(['Admin']), projectController.createProject);
+app.put('/api/projects/:id', requireAuth, requireRoles(['Admin']), projectController.updateProject);
+app.delete('/api/projects/:id', requireAuth, requireRoles(['Admin']), projectController.deleteProject);
+app.get('/api/users/:id/projects', requireAuth, requireRoles(['Admin', 'HR']), projectController.getUserProjects);
+app.post('/api/users/:id/projects', requireAuth, requireRoles(['Admin']), projectController.setUserProjects);
+app.get('/api/my-projects', requireAuth, projectController.getMyProjects);
+app.get('/api/reports/projects', requireAuth, requireRoles(['Admin', 'HR']), projectController.getProjectHoursReport);
+
+// 8. Absence Types (Anagrafica Assenze)
+app.get('/api/absence-types', requireAuth, absenceTypeController.getAbsenceTypes);
+app.post('/api/absence-types', requireAuth, requireRoles(['Admin']), absenceTypeController.createAbsenceType);
+app.put('/api/absence-types/:id', requireAuth, requireRoles(['Admin']), absenceTypeController.updateAbsenceType);
+app.delete('/api/absence-types/:id', requireAuth, requireRoles(['Admin']), absenceTypeController.deleteAbsenceType);
 
 // Serve frontend static files in production
 const frontendBuildPath = path.join(__dirname, '..', 'frontend', 'dist');

@@ -9,14 +9,14 @@ function recalculateBalances() {
   try {
     // Get annualHolidayDays limit from settings
     const setting = db.prepare("SELECT value FROM settings WHERE key = 'annualHolidayDays'").get();
-    const totalHoliday = setting ? parseInt(setting.value) : 30;
+    const totalHoliday = setting ? parseInt(setting.value) : 26;
 
     // Get all users
     const users = db.prepare("SELECT id, role FROM users").all();
 
     const updateStmt = db.prepare(`
       UPDATE users 
-      SET holiday_total = ?, holiday_taken = ?, holiday_planned = ?, holiday_remaining = ?
+      SET holiday_total = ?, holiday_taken = ?, holiday_planned = ?, holiday_remaining = ?, sickness_days = ?, study_days = ?
       WHERE id = ?
     `);
 
@@ -27,6 +27,8 @@ function recalculateBalances() {
 
         let taken = 0;
         let planned = 0;
+        let sicknessDays = 0;
+        let studyDays = 0;
 
         // Query all active requests (excluding rejected)
         const requests = db.prepare(`
@@ -36,10 +38,20 @@ function recalculateBalances() {
         `).all(user.id);
 
         requests.forEach(req => {
-          // Malattia and Permesso Studio do not deduct from holiday balance
-          if (req.type === 'Malattia' || req.type === 'Permesso Studio') return;
-
           const diffDays = getWorkingDaysCount(req.startDate, req.endDate);
+
+          if (req.type === 'Malattia') {
+            if (req.status === 'Approvata') {
+              sicknessDays += diffDays;
+            }
+            return;
+          }
+          if (req.type === 'Permesso Studio') {
+            if (req.status === 'Approvata') {
+              studyDays += diffDays;
+            }
+            return;
+          }
 
           if (req.status === 'In attesa di approvazione') {
             planned += diffDays;
@@ -58,6 +70,8 @@ function recalculateBalances() {
           taken,
           planned,
           totalHoliday - taken - planned,
+          sicknessDays,
+          studyDays,
           user.id
         );
       });

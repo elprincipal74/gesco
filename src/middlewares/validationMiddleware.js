@@ -46,7 +46,7 @@ const schemas = {
     month: z.coerce.number().int().min(1).max(12),
     days: z.array(z.object({
       date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Data non valida (AAAA-MM-GG)"),
-      type: z.enum(["Lavoro", "Ferie", "Assenza Generica", "Attività interne", "Malattia", "Permesso"]),
+      type: z.string(),
       projectName: z.string().trim().optional().default(''),
       hours: z.coerce.number().min(0).max(24).optional().default(8.0),
       notes: z.string().trim().max(250, "Le note non possono superare i 250 caratteri").optional().default('')

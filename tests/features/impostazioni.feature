@@ -15,4 +15,5 @@ Funzionalità: Configurazione Limiti Globali (Impostazioni)
     E quando accedo come dipendente "mario.rossi@azienda.it"
     Allora il mio saldo totale ferie deve essere aggiornato a 30 giorni
     E se provo a richiedere un "Permesso Studio" di 4 giorni lavorativi
+    E clicco sul pulsante "Invia Richiesta"
     Allora il sistema deve impedirmi di inviare la richiesta perché supera il nuovo limite di 3 giorni

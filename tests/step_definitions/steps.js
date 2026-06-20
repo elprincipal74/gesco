@@ -1,21 +1,67 @@
-// tests/step_definitions/steps.js
-// Definizione dei passaggi (Step Definitions) per i test BDD di Cucumber.
-// Questo file integra i passaggi Gherkin con i comandi Playwright.
-
 const { Given, When, Then, Before, After, setDefaultTimeout } = require('@cucumber/cucumber');
 const { expect } = require('@playwright/test');
 const playwright = require('playwright');
+const db = require('../../src/database/db');
+const { recalculateBalances } = require('../../src/database/balanceService');
 
 // Imposta il timeout predefinito per ogni step a 30 secondi (evita i timeout su reti aziendali)
 setDefaultTimeout(30000);
 
 let browser;
 let page;
+let currentEditingDate = null;
+
+async function dismissPopupIfVisible() {
+  // Wait up to 3 seconds for the profile widget button to ensure page has loaded after login
+  await page.waitForSelector('.profile-widget-btn', { state: 'visible', timeout: 3000 }).catch(() => {});
+  
+  // Wait up to 1.5 seconds for any potential modal backdrop to appear
+  try {
+    await page.waitForSelector('.modal-backdrop', { state: 'visible', timeout: 1500 });
+  } catch (e) {
+    // If no modal backdrop appears in 1.5s, we can safely return
+    return;
+  }
+
+  // Dismiss only seeded unread communication modals
+  for (let i = 0; i < 10; i++) {
+    const modalTextLocator = page.locator('.modal-backdrop');
+    if (await modalTextLocator.isVisible()) {
+      const text = await modalTextLocator.innerText();
+      if (text.includes("piano ferie") || text.includes("leggetela")) {
+        const dismissBtn = page.locator('button:has-text("Ho letto e confermo la lettura")');
+        if (await dismissBtn.isVisible()) {
+          await dismissBtn.click();
+          await page.waitForTimeout(200); // wait for modal transition
+          continue;
+        }
+      }
+    }
+    break;
+  }
+}
+
+function getNameFromEmail(email) {
+  const emailLower = email.toLowerCase();
+  if (emailLower.includes('mario.rossi')) return 'Mario Rossi';
+  if (emailLower.includes('luigi.bianchi')) return 'Luigi Bianchi';
+  if (emailLower.includes('giuseppe.verdi')) return 'Giuseppe Verdi';
+  if (emailLower.includes('admin')) return 'Admin User';
+  if (emailLower.includes('hr')) return 'HR User';
+  return 'Mario Rossi'; // default fallback
+}
 
 Before(async () => {
   // Avvia il browser prima di ogni scenario
   browser = await playwright.chromium.launch({ headless: true });
   page = await browser.newPage();
+  
+  // Print console logs and errors from the browser for debugging
+  page.on('console', msg => console.log('BROWSER CONSOLE:', msg.text()));
+  page.on('pageerror', err => console.error('BROWSER ERROR:', err.message));
+
+  // Reset database to seed state before each scenario
+  await page.request.post('http://localhost:5173/api/test/reset');
   await page.goto('http://localhost:5173');
 });
 
@@ -31,6 +77,7 @@ After(async () => {
 Given('che sono loggato come dipendente con email {string}', async (email) => {
   const name = email.includes('mario') ? 'Mario Rossi' : 'Luigi Bianchi';
   await page.locator('.quick-login-btn', { hasText: name }).click();
+  await dismissPopupIfVisible();
 });
 
 Given('il mio saldo ferie disponibile è di {int} giorni', async (days) => {
@@ -44,22 +91,16 @@ Given('il limite per il permesso studio è configurato a {int} giorni lavorativi
 
 Given('che il dipendente {string} ha inviato una richiesta di ferie dal {string} al {string} \\({int} giorni)', async (employee, start, end, days) => {
   const userId = employee.includes('Mario') ? 'dipendente-1' : 'dipendente-2';
+  const requestId = 'req-' + Date.now() + '-' + Math.floor(Math.random() * 1000);
+  const createdAt = new Date().toISOString();
   
-  // Invia una richiesta API in background usando page.evaluate
-  await page.evaluate(async ({ userId, start, end }) => {
-    await fetch('/api/requests', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        userId,
-        startDate: start,
-        endDate: end,
-        type: 'Ferie',
-        attachmentName: '',
-        attachmentData: ''
-      })
-    });
-  }, { userId, start, end });
+  db.prepare(`
+    INSERT INTO holiday_requests (id, userId, userName, startDate, endDate, type, attachmentName, attachmentData, status, rejectionReason, approvedBy, createdAt)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(requestId, userId, employee, start, end, 'Ferie', '', '', 'In attesa di approvazione', '', '', createdAt);
+
+  recalculateBalances();
+  await page.reload();
 });
 
 Given('lo stato della richiesta è {string}', async (status) => {
@@ -68,10 +109,12 @@ Given('lo stato della richiesta è {string}', async (status) => {
 
 Given('che effettuo il login come HR con email {string}', async (email) => {
   await page.locator('.quick-login-btn', { hasText: 'HR User' }).click();
+  await dismissPopupIfVisible();
 });
 
 Given('che effettuo il login come Admin con email {string}', async (email) => {
   await page.locator('.quick-login-btn', { hasText: 'Admin User' }).click();
+  await dismissPopupIfVisible();
 });
 
 // === AZIONI SUL CALENDARIO E FORM ===
@@ -94,6 +137,9 @@ When('seleziono l\'intervallo dal {string} al {string} dal calendario \\(più di
   const startDay = parseInt(start.split('-')[2]);
   const endDay = parseInt(end.split('-')[2]);
   await page.locator('.date-picker-cell').filter({ hasText: new RegExp(`^${startDay}$`) }).first().click();
+  
+  // Click next month button in range picker to navigate to September
+  await page.click('.form-group:has-text("Seleziona Intervallo") button:has-text(">")');
   
   const endCell = page.locator('.date-picker-cell').filter({ hasText: new RegExp(`^${endDay}$`) }).first();
   if (await endCell.isVisible()) {
@@ -150,14 +196,15 @@ When('accedo come dipendente {string}', async (email) => {
   await page.click('.profile-widget-btn');
   await page.click('.profile-dropdown-item.logout');
   
-  const name = email.includes('mario') ? 'Mario Rossi' : 'Luigi Bianchi';
+  const name = getNameFromEmail(email);
   await page.locator('.quick-login-btn', { hasText: name }).click();
+  await dismissPopupIfVisible();
 });
 
 When('se provo a richiedere un {string} di {int} giorni lavorativi', async (type, days) => {
   await page.click(`.type-card-option:has-text("${type}")`);
   const startCell = page.locator('.date-picker-cell').filter({ hasText: /^10$/ }).first();
-  const endCell = page.locator('.date-picker-cell').filter({ hasText: /^15$/ }).first();
+  const endCell = page.locator('.date-picker-cell').filter({ hasText: days > 5 ? /^17$/ : /^15$/ }).first();
   await startCell.click();
   await endCell.click();
 });
@@ -165,7 +212,7 @@ When('se provo a richiedere un {string} di {int} giorni lavorativi', async (type
 // === VERIFICHE (THEN) ===
 
 Then('la richiesta deve essere inviata con successo', async () => {
-  const toast = page.locator('.toast.success');
+  const toast = page.locator('.toast.success').last();
   await expect(toast).toBeVisible();
 });
 
@@ -189,7 +236,7 @@ Then('il mio saldo ferie disponibile non deve essere intaccato \\({int} giorni s
 });
 
 Then('il sistema mostra un messaggio di errore {string}', async (errorMsg) => {
-  const toastError = page.locator('.toast.error');
+  const toastError = page.locator('.toast.error').last();
   await expect(toastError).toBeVisible();
   await expect(toastError).toContainText(errorMsg);
 });
@@ -199,11 +246,11 @@ Then('il pulsante {string} viene bloccato o la richiesta viene rifiutata dal cli
 });
 
 Then('la richiesta non viene inviata', async () => {
-  await expect(page.locator('.toast.success')).not.toBeVisible();
+  await expect(page.locator('.toast.success').last()).not.toBeVisible();
 });
 
 Then('la richiesta cambia stato in {string}', async (status) => {
-  await expect(page.locator('.toast.success')).toBeVisible();
+  await expect(page.locator('.toast.success').last()).toBeVisible();
 });
 
 Then('viene registrato che l\'approvatore è {string}', async (approver) => {
@@ -219,13 +266,15 @@ Then('quando il dipendente {string} controlla la sua area personale', async (emp
   await page.click('.profile-widget-btn');
   await page.click('.profile-dropdown-item.logout');
   await page.locator('.quick-login-btn', { hasText: employee }).click();
+  await dismissPopupIfVisible();
 });
 
 Then('quando accedo come dipendente {string}', async (email) => {
   await page.click('.profile-widget-btn');
   await page.click('.profile-dropdown-item.logout');
-  const name = email.includes('mario') ? 'Mario Rossi' : 'Luigi Bianchi';
+  const name = getNameFromEmail(email);
   await page.locator('.quick-login-btn', { hasText: name }).click();
+  await dismissPopupIfVisible();
 });
 
 Then('vede lo stato {string} con la dicitura {string}', async (status, text) => {
@@ -240,7 +289,7 @@ Then('vede la nota di rifiuto {string}', async (reasonText) => {
 });
 
 Then('le impostazioni vengono salvate con successo', async () => {
-  await expect(page.locator('.toast.success')).toBeVisible();
+  await expect(page.locator('.toast.success').last()).toBeVisible();
 });
 
 Then('il mio saldo totale ferie deve essere aggiornato a {int} giorni', async (totalDays) => {
@@ -249,7 +298,7 @@ Then('il mio saldo totale ferie deve essere aggiornato a {int} giorni', async (t
 });
 
 Then('il sistema deve impedirmi di inviare la richiesta perché supera il nuovo limite di {int} giorni', async (days) => {
-  const toastError = page.locator('.toast.error');
+  const toastError = page.locator('.toast.error').last();
   await expect(toastError).toBeVisible();
   await expect(toastError).toContainText('supera il limite massimo');
 });
@@ -261,7 +310,7 @@ When('inserisco nel messaggio {string}', async (msg) => {
 });
 
 Then('la comunicazione viene inviata con successo', async () => {
-  const toast = page.locator('.toast.success');
+  const toast = page.locator('.toast.success').last();
   await expect(toast).toBeVisible();
   await expect(toast).toContainText('successo');
 });
@@ -293,24 +342,49 @@ Given('che il dipendente {string} è registrato nel sistema', async (name) => {
 });
 
 When('seleziono il giorno {string} dal calendario del rapportino', async (dateStr) => {
-  const dayNum = parseInt(dateStr.split('-')[2]);
-  const cell = page.locator('.timesheet-tab-container .date-picker-cell').filter({ hasText: new RegExp(`^${dayNum}(\\D|$)`) }).first();
-  await cell.click();
+  const [year, month, day] = dateStr.split('-');
+  const monthNum = parseInt(month);
+  const yearNum = parseInt(year);
+  
+  // Select year and month if they differ
+  const currentMonthVal = await page.locator('#timesheet-month-select').inputValue();
+  const currentYearVal = await page.locator('#timesheet-year-select').inputValue();
+  
+  if (currentMonthVal !== String(monthNum)) {
+    await page.selectOption('#timesheet-month-select', String(monthNum));
+    await page.waitForTimeout(200); // Wait briefly for local state
+  }
+  if (currentYearVal !== String(yearNum)) {
+    await page.selectOption('#timesheet-year-select', String(yearNum));
+    await page.waitForTimeout(200);
+  }
+  
+  currentEditingDate = dateStr;
 });
 
 When('inserisco l\'attività di tipo {string} sul progetto {string} con ore {int} e nota {string}', async (type, project, hours, notes) => {
-  await page.selectOption('.timesheet-tab-container select', type);
+  const row = page.locator(`tr[data-date="${currentEditingDate}"]`);
+  
   if (type === 'Lavoro') {
-    await page.fill('.timesheet-tab-container input[placeholder*="progetto"]', project);
+    if (project === '') {
+      await row.locator('select.timesheet-project-select').selectOption('');
+    } else {
+      await row.locator('select.timesheet-project-select').selectOption(project);
+    }
+    await row.locator('input[type="number"]').fill(String(hours));
+  } else if (type === 'Permesso') {
+    await row.locator('select.timesheet-permesso-select').selectOption(String(hours));
+  } else if (type === 'Assenza Generica') {
+    await row.locator('select.timesheet-altra-assenza-select').selectOption('Assenza Generica');
+  } else if (type === 'Ferie' || type === 'Malattia') {
+    await row.locator('select.timesheet-altra-assenza-select').selectOption(type);
   }
-  if (type === 'Lavoro' || type === 'Permesso') {
-    await page.fill('.timesheet-tab-container input[type="number"]', String(hours));
-  }
-  await page.fill('.timesheet-tab-container textarea[placeholder*="note"]', notes);
+  
+  await row.locator('input[placeholder="Note..."]').fill(notes);
 });
 
 When('applico le modifiche al giorno', async () => {
-  await page.click('.timesheet-tab-container button:has-text("Applica a questo giorno")');
+  // No-op since changes are updated instantly in the table
 });
 
 When('clicco sul pulsante {string} del rapportino', async (btnText) => {
@@ -334,6 +408,7 @@ Given('che il dipendente {string} ha inviato il rapportino per Agosto 2026', asy
   // Log in as employee
   const name = employee.includes('Mario') ? 'Mario Rossi' : 'Luigi Bianchi';
   await page.locator('.quick-login-btn', { hasText: name }).click();
+  await dismissPopupIfVisible();
   
   // Submit timesheet via API using page.evaluate
   await page.evaluate(async () => {
@@ -371,6 +446,7 @@ Given('che il dipendente {string} ha inviato il rapportino per Agosto 2026', asy
 
 Given('effettuo il login come Team Leader con email {string}', async (email) => {
   await page.locator('.quick-login-btn', { hasText: 'Giuseppe Verdi' }).click();
+  await dismissPopupIfVisible();
 });
 
 Then('vedo il rapportino inviato di {string} per il mese {string}', async (employee, month) => {
@@ -380,6 +456,9 @@ Then('vedo il rapportino inviato di {string} per il mese {string}', async (emplo
 });
 
 When('clicco su {string} per il rapportino di {string}', async (btnText, employee) => {
+  if (btnText === 'Approva') {
+    page.once('dialog', dialog => dialog.accept());
+  }
   const card = page.locator('.timesheet-approvals-tab-container .glass-card', { hasText: employee }).first();
   await card.locator(`button:has-text("${btnText}")`).click();
 });
@@ -391,20 +470,9 @@ Then('vedo che ha lavorato {int} ore sul progetto {string} il giorno {string}', 
   await expect(row).toContainText(String(hours));
 });
 
-When('clicco su "Approva" per il rapportino di {string}', async (employee) => {
-  page.once('dialog', dialog => dialog.accept());
-  const card = page.locator('.timesheet-approvals-tab-container .glass-card', { hasText: employee }).first();
-  await card.locator('button:has-text("Approva")').click();
-});
-
 Then('il rapportino di {string} cambia stato in {string}', async (employee, status) => {
-  const toast = page.locator('.toast.success');
+  const toast = page.locator('.toast.success').last();
   await expect(toast).toBeVisible();
-});
-
-When('clicco su "Rifiuta" per il rapportino di {string}', async (employee) => {
-  const card = page.locator('.timesheet-approvals-tab-container .glass-card', { hasText: employee }).first();
-  await card.locator('button:has-text("Rifiuta")').click();
 });
 
 When('nel modulo di rifiuto rapportino inserisco la motivazione {string}', async (reason) => {

@@ -34,7 +34,9 @@ if (!tableExists) {
       holiday_total INTEGER DEFAULT 30,
       holiday_taken INTEGER DEFAULT 0,
       holiday_planned INTEGER DEFAULT 0,
-      holiday_remaining INTEGER DEFAULT 30
+      holiday_remaining INTEGER DEFAULT 30,
+      sickness_days INTEGER DEFAULT 0,
+      study_days INTEGER DEFAULT 0
     )
   `);
 
@@ -125,6 +127,37 @@ if (!tableExists) {
     )
   `);
 
+  // 8. Projects Table
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS projects (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL UNIQUE,
+      description TEXT DEFAULT '',
+      createdAt TEXT NOT NULL
+    )
+  `);
+
+  // 9. User Projects Table (Association)
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS user_projects (
+      userId TEXT NOT NULL,
+      projectId TEXT NOT NULL,
+      PRIMARY KEY(userId, projectId),
+      FOREIGN KEY(userId) REFERENCES users(id) ON DELETE CASCADE,
+      FOREIGN KEY(projectId) REFERENCES projects(id) ON DELETE CASCADE
+    )
+  `);
+
+  // 10. Absence Types Table
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS absence_types (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL UNIQUE,
+      description TEXT DEFAULT '',
+      createdAt TEXT NOT NULL
+    )
+  `);
+
   // Seeding from legacy database.json or database.json.bak if exists
   const seedPath = fs.existsSync(legacyDbPath) ? legacyDbPath : (fs.existsSync(legacyDbPath + '.bak') ? legacyDbPath + '.bak' : null);
   if (seedPath) {
@@ -138,12 +171,12 @@ if (!tableExists) {
         // Seed Users
         if (data.users && Array.isArray(data.users)) {
           const insertUser = db.prepare(`
-            INSERT INTO users (id, name, email, password, role, phone, address, iban, holiday_total, holiday_taken, holiday_planned, holiday_remaining)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO users (id, name, email, password, role, phone, address, iban, holiday_total, holiday_taken, holiday_planned, holiday_remaining, sickness_days, study_days)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
           `);
           data.users.forEach(user => {
             const hashedPassword = bcrypt.hashSync(user.email.toLowerCase(), 10); // email as password for compatibility
-            const balance = user.holidayBalance || { totalDays: 30, takenDays: 0, plannedDays: 0, remainingDays: 30 };
+            const balance = user.holidayBalance || { totalDays: 30, takenDays: 0, plannedDays: 0, remainingDays: 30, sicknessDays: 0, studyDays: 0 };
             const role = user.email.toLowerCase() === 'giuseppe.verdi@azienda.it' ? 'Team Leader' : user.role;
             insertUser.run(
               user.id,
@@ -157,7 +190,9 @@ if (!tableExists) {
               balance.totalDays,
               balance.takenDays,
               balance.plannedDays,
-              balance.remainingDays
+              balance.remainingDays,
+              balance.sicknessDays || 0,
+              balance.studyDays || 0
             );
           });
         }
@@ -218,6 +253,51 @@ if (!tableExists) {
             insertSetting.run(key, String(value));
           });
         }
+
+        // Seed default projects
+        const defaultProjects = [
+          { id: 'proj-1', name: 'Progetto Alpha', description: 'Sviluppo software core' },
+          { id: 'proj-2', name: 'Progetto Beta', description: 'Attività di manutenzione e R&D' },
+          { id: 'proj-3', name: 'Attività Interne', description: 'Attività interne generali' }
+        ];
+        
+        const insertProject = db.prepare(`
+          INSERT INTO projects (id, name, description, createdAt)
+          VALUES (?, ?, ?, ?)
+        `);
+        
+        const nowStr = new Date().toISOString();
+        defaultProjects.forEach(p => {
+          insertProject.run(p.id, p.name, p.description, nowStr);
+        });
+
+        // Assign all default projects to all seeded users
+        if (data.users && Array.isArray(data.users)) {
+          const insertUserProj = db.prepare(`
+            INSERT INTO user_projects (userId, projectId)
+            VALUES (?, ?)
+          `);
+          data.users.forEach(user => {
+            defaultProjects.forEach(p => {
+              insertUserProj.run(user.id, p.id);
+            });
+          });
+        }
+
+        // Seed default absence types
+        const defaultAbsences = [
+          { id: 'abs-1', name: 'Ferie', description: 'Ferie annuali' },
+          { id: 'abs-2', name: 'Malattia', description: 'Giorni di malattia' },
+          { id: 'abs-3', name: 'Permesso Studio', description: 'Permesso per studio/esami' },
+          { id: 'abs-4', name: 'Assenza Generica', description: 'Altro tipo di assenza' }
+        ];
+        const insertAbsence = db.prepare(`
+          INSERT INTO absence_types (id, name, description, createdAt)
+          VALUES (?, ?, ?, ?)
+        `);
+        defaultAbsences.forEach(a => {
+          insertAbsence.run(a.id, a.name, a.description, nowStr);
+        });
       });
 
       seedTransaction();
@@ -232,7 +312,7 @@ if (!tableExists) {
       console.error('Errore durante la migrazione dei dati:', err);
     }
     db.exec(`
-      INSERT INTO settings (key, value) VALUES ('annualHolidayDays', '30'), ('maxStudyLeaveDays', '3')
+      INSERT INTO settings (key, value) VALUES ('annualHolidayDays', '26'), ('maxStudyLeaveDays', '5')
       ON CONFLICT DO NOTHING;
     `);
   }
@@ -261,16 +341,19 @@ function resetDatabase() {
     db.prepare('DELETE FROM monthly_reports').run();
     db.prepare('DELETE FROM users').run();
     db.prepare('DELETE FROM settings').run();
+    db.prepare('DELETE FROM user_projects').run();
+    db.prepare('DELETE FROM projects').run();
+    db.prepare('DELETE FROM absence_types').run();
     
     // Seed Users
     if (data.users && Array.isArray(data.users)) {
       const insertUser = db.prepare(`
-        INSERT INTO users (id, name, email, password, role, phone, address, iban, holiday_total, holiday_taken, holiday_planned, holiday_remaining)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO users (id, name, email, password, role, phone, address, iban, holiday_total, holiday_taken, holiday_planned, holiday_remaining, sickness_days, study_days)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `);
       data.users.forEach(user => {
         const hashedPassword = bcrypt.hashSync(user.email.toLowerCase(), 10);
-        const balance = user.holidayBalance || { totalDays: 30, takenDays: 0, plannedDays: 0, remainingDays: 30 };
+        const balance = user.holidayBalance || { totalDays: 30, takenDays: 0, plannedDays: 0, remainingDays: 30, sicknessDays: 0, studyDays: 0 };
         const role = user.email.toLowerCase() === 'giuseppe.verdi@azienda.it' ? 'Team Leader' : user.role;
         insertUser.run(
           user.id,
@@ -284,7 +367,9 @@ function resetDatabase() {
           balance.totalDays,
           balance.takenDays,
           balance.plannedDays,
-          balance.remainingDays
+          balance.remainingDays,
+          balance.sicknessDays || 0,
+          balance.studyDays || 0
         );
       });
     }
@@ -345,7 +430,133 @@ function resetDatabase() {
         insertSetting.run(key, String(value));
       });
     }
+
+    // Seed default projects
+    const defaultProjects = [
+      { id: 'proj-1', name: 'Progetto Alpha', description: 'Sviluppo software core' },
+      { id: 'proj-2', name: 'Progetto Beta', description: 'Attività di manutenzione e R&D' },
+      { id: 'proj-3', name: 'Attività Interne', description: 'Attività interne generali' }
+    ];
+    
+    const insertProject = db.prepare(`
+      INSERT INTO projects (id, name, description, createdAt)
+      VALUES (?, ?, ?, ?)
+    `);
+    
+    const nowStr = new Date().toISOString();
+    defaultProjects.forEach(p => {
+      insertProject.run(p.id, p.name, p.description, nowStr);
+    });
+
+    // Assign all default projects to all seeded users
+    if (data.users && Array.isArray(data.users)) {
+      const insertUserProj = db.prepare(`
+        INSERT INTO user_projects (userId, projectId)
+        VALUES (?, ?)
+      `);
+      data.users.forEach(user => {
+        defaultProjects.forEach(p => {
+          insertUserProj.run(user.id, p.id);
+        });
+      });
+    }
+
+    // Seed default absence types
+    const defaultAbsences = [
+      { id: 'abs-1', name: 'Ferie', description: 'Ferie annuali' },
+      { id: 'abs-2', name: 'Malattia', description: 'Giorni di malattia' },
+      { id: 'abs-3', name: 'Permesso Studio', description: 'Permesso per studio/esami' },
+      { id: 'abs-4', name: 'Assenza Generica', description: 'Altro tipo di assenza' }
+    ];
+    const insertAbsence = db.prepare(`
+      INSERT INTO absence_types (id, name, description, createdAt)
+      VALUES (?, ?, ?, ?)
+    `);
+    defaultAbsences.forEach(a => {
+      insertAbsence.run(a.id, a.name, a.description, nowStr);
+    });
   })();
+
+  const { recalculateBalances } = require('./balanceService');
+  recalculateBalances();
+}
+
+// Dynamic migrations for existing databases
+try {
+  db.prepare("SELECT sickness_days FROM users LIMIT 1").get();
+} catch (err) {
+  console.log("Aggiunta colonna sickness_days alla tabella users...");
+  try {
+    db.exec("ALTER TABLE users ADD COLUMN sickness_days INTEGER DEFAULT 0");
+  } catch (alterErr) {
+    console.error("Errore nell'aggiunta di sickness_days:", alterErr);
+  }
+}
+
+try {
+  db.prepare("SELECT study_days FROM users LIMIT 1").get();
+} catch (err) {
+  console.log("Aggiunta colonna study_days alla tabella users...");
+  try {
+    db.exec("ALTER TABLE users ADD COLUMN study_days INTEGER DEFAULT 0");
+  } catch (alterErr) {
+    console.error("Errore nell'aggiunta di study_days:", alterErr);
+  }
+}
+
+// Migration for projects and user_projects tables in existing databases
+try {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS projects (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL UNIQUE,
+      description TEXT DEFAULT '',
+      createdAt TEXT NOT NULL
+    )
+  `);
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS user_projects (
+      userId TEXT NOT NULL,
+      projectId TEXT NOT NULL,
+      PRIMARY KEY(userId, projectId),
+      FOREIGN KEY(userId) REFERENCES users(id) ON DELETE CASCADE,
+      FOREIGN KEY(projectId) REFERENCES projects(id) ON DELETE CASCADE
+    )
+  `);
+} catch (err) {
+  console.error("Errore durante la creazione delle tabelle progetti nei database esistenti:", err);
+}
+
+// Migration for absence_types table in existing databases
+try {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS absence_types (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL UNIQUE,
+      description TEXT DEFAULT '',
+      createdAt TEXT NOT NULL
+    )
+  `);
+  // check if empty
+  const count = db.prepare("SELECT COUNT(*) as count FROM absence_types").get().count;
+  if (count === 0) {
+    const defaultAbsences = [
+      { id: 'abs-1', name: 'Ferie', description: 'Ferie annuali' },
+      { id: 'abs-2', name: 'Malattia', description: 'Giorni di malattia' },
+      { id: 'abs-3', name: 'Permesso Studio', description: 'Permesso per studio/esami' },
+      { id: 'abs-4', name: 'Assenza Generica', description: 'Altro tipo di assenza' }
+    ];
+    const insertAbsence = db.prepare(`
+      INSERT INTO absence_types (id, name, description, createdAt)
+      VALUES (?, ?, ?, ?)
+    `);
+    const nowStr = new Date().toISOString();
+    defaultAbsences.forEach(a => {
+      insertAbsence.run(a.id, a.name, a.description, nowStr);
+    });
+  }
+} catch (err) {
+  console.error("Errore durante la creazione della tabella absence_types nei database esistenti:", err);
 }
 
 db.resetDatabase = resetDatabase;
