@@ -15,8 +15,8 @@ test.describe('Gestione Tipi Assenza - E2E Tests', () => {
     // 1. Accedi come Admin User
     await page.locator('.quick-login-btn', { hasText: 'Admin User' }).click();
 
-    // 2. Naviga nella scheda "Gestione Commesse"
-    await page.click('.nav-item:has-text("Gestione Commesse")');
+    // 2. Naviga nella scheda "Gestione Tipi Assenza"
+    await page.click('.nav-item:has-text("Gestione Tipi Assenza")');
 
     // 3. Verifica la presenza del modulo "Configurazione Nuovo Tipo Assenza"
     await expect(page.locator('.glass-card', { hasText: 'Configurazione Nuovo Tipo Assenza' })).toBeVisible();

@@ -21,7 +21,7 @@ test.describe('Sistema Gestione Ferie - E2E Tests', () => {
     await page.locator('.quick-login-btn', { hasText: 'Mario Rossi' }).click();
 
     // Verifica la visualizzazione della dashboard
-    await expect(page.locator('.logo-text')).toContainText('Sistema Ferie');
+    await expect(page.locator('.logo-text')).toContainText('Gestione Commesse');
     await expect(page.locator('.user-profile-widget')).toContainText('Mario Rossi');
 
     // Clicca su un giorno specifico del calendario (es. il giorno 17 del mese corrente)

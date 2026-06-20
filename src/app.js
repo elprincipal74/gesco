@@ -53,7 +53,14 @@ app.get('/api/me', requireAuth, authController.getMe);
 
 // 1. Users
 app.get('/api/users', requireAuth, userController.getUsers);
-app.put('/api/users/:id', requireAuth, validate('profileUpdate'), userController.updateProfile);
+app.post('/api/users', requireAuth, requireRoles(['Admin', 'HR']), validate('userCreate'), userController.createUser);
+app.put('/api/users/:id', requireAuth, (req, res, next) => {
+  if (req.user && (req.user.role === 'Admin' || req.user.role === 'HR')) {
+    return validate('userAdminUpdate')(req, res, next);
+  }
+  return validate('profileUpdate')(req, res, next);
+}, userController.updateProfile);
+app.delete('/api/users/:id', requireAuth, requireRoles(['Admin', 'HR']), userController.deleteUser);
 
 // 2. Requests
 app.get('/api/requests', requireAuth, requestController.getRequests);
@@ -121,7 +128,7 @@ app.post('/api/timesheets/:id/approve', requireAuth, requireRoles(['Admin', 'HR'
 app.post('/api/timesheets/:id/reject', requireAuth, requireRoles(['Admin', 'HR', 'Team Leader']), validate('rejectTimesheet'), timesheetController.rejectTimesheet);
 
 // 7. Projects (Commesse)
-app.get('/api/projects', requireAuth, requireRoles(['Admin', 'HR']), projectController.getProjects);
+app.get('/api/projects', requireAuth, requireRoles(['Admin', 'HR', 'Team Leader']), projectController.getProjects);
 app.post('/api/projects', requireAuth, requireRoles(['Admin']), projectController.createProject);
 app.put('/api/projects/:id', requireAuth, requireRoles(['Admin']), projectController.updateProject);
 app.delete('/api/projects/:id', requireAuth, requireRoles(['Admin']), projectController.deleteProject);

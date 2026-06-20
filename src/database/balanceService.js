@@ -23,7 +23,7 @@ function recalculateBalances() {
     // Perform inside transaction for speed and safety
     const tx = db.transaction(() => {
       users.forEach(user => {
-        if (user.role !== 'Dipendente') return;
+        if (user.role !== 'Dipendente' && user.role !== 'Team Leader') return;
 
         let taken = 0;
         let planned = 0;

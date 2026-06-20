@@ -4,24 +4,24 @@
   --font-sans: 'Plus Jakarta Sans', sans-serif;
   
   /* Color Palette - Premium Dark Mode */
-  --bg-main: #080b11;
-  --bg-sidebar: #0f131a;
-  --bg-card: rgba(17, 24, 39, 0.65);
-  --bg-card-hover: rgba(26, 36, 56, 0.8);
-  --bg-input: rgba(15, 23, 42, 0.6);
+  --bg-main: #000000;
+  --bg-sidebar: #080808;
+  --bg-card: rgba(15, 15, 15, 0.65);
+  --bg-card-hover: rgba(25, 25, 25, 0.8);
+  --bg-input: rgba(10, 10, 10, 0.6);
   
   --border-color: rgba(255, 255, 255, 0.06);
-  --border-glow: rgba(99, 102, 241, 0.15);
-  --border-focus: rgba(99, 102, 241, 0.5);
+  --border-glow: rgba(124, 182, 129, 0.15);
+  --border-focus: rgba(124, 182, 129, 0.5);
   
   --text-primary: #f8fafc;
   --text-secondary: #94a3b8;
   --text-muted: #64748b;
   
-  --color-primary: #6366f1; /* Indigo */
-  --color-primary-hover: #4f46e5;
-  --color-primary-glow: rgba(99, 102, 241, 0.35);
-  --color-secondary: #0ea5e9; /* Sky Blue */
+  --color-primary: #7CB681; /* Green */
+  --color-primary-hover: #679f6c;
+  --color-primary-glow: rgba(124, 182, 129, 0.35);
+  --color-secondary: #a3d9aa; /* Light Green */
   --color-success: #10b981; /* Emerald */
   --color-success-bg: rgba(16, 185, 129, 0.1);
   --color-warning: #f59e0b; /* Amber */
@@ -32,7 +32,7 @@
   --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
   --shadow-md: 0 4px 10px -1px rgba(0, 0, 0, 0.2);
   --shadow-lg: 0 10px 25px -5px rgba(0, 0, 0, 0.3);
-  --shadow-glow: 0 0 20px rgba(99, 102, 241, 0.15);
+  --shadow-glow: 0 0 20px rgba(124, 182, 129, 0.15);
   
   --radius-sm: 8px;
   --radius-md: 12px;
@@ -125,7 +125,7 @@ a:hover {
   justify-content: center;
   color: white;
   font-weight: 800;
-  box-shadow: 0 0 15px rgba(99, 102, 241, 0.4);
+  box-shadow: 0 0 15px rgba(124, 182, 129, 0.4);
 }
 
 .logo-text {
@@ -162,8 +162,8 @@ a:hover {
 
 .nav-item.active {
   color: var(--text-primary);
-  background: linear-gradient(135deg, rgba(99, 102, 241, 0.15), rgba(14, 165, 233, 0.05));
-  border-color: rgba(99, 102, 241, 0.2);
+  background: linear-gradient(135deg, rgba(124, 182, 129, 0.15), rgba(163, 217, 170, 0.05));
+  border-color: rgba(124, 182, 129, 0.2);
   box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.2);
 }
 
@@ -390,8 +390,8 @@ a:hover {
   color: white;
 }
 .stat-icon.total {
-  background: linear-gradient(135deg, #6366f1, #4f46e5);
-  box-shadow: 0 0 15px rgba(99, 102, 241, 0.3);
+  background: linear-gradient(135deg, #7CB681, #679f6c);
+  box-shadow: 0 0 15px rgba(124, 182, 129, 0.3);
 }
 .stat-icon.taken {
   background: linear-gradient(135deg, #10b981, #059669);
@@ -445,7 +445,7 @@ a:hover {
 }
 .form-input:focus {
   border-color: var(--color-primary);
-  box-shadow: 0 0 10px rgba(99, 102, 241, 0.25);
+  box-shadow: 0 0 10px rgba(124, 182, 129, 0.25);
   outline: none;
 }
 .form-row {
@@ -473,11 +473,11 @@ a:hover {
 .btn-primary {
   background-color: var(--color-primary);
   color: white;
-  box-shadow: 0 4px 14px rgba(99, 102, 241, 0.4);
+  box-shadow: 0 4px 14px rgba(124, 182, 129, 0.4);
 }
 .btn-primary:hover {
   background-color: var(--color-primary-hover);
-  box-shadow: 0 6px 20px rgba(99, 102, 241, 0.5);
+  box-shadow: 0 6px 20px rgba(124, 182, 129, 0.5);
   transform: translateY(-1px);
 }
 .btn-secondary {
@@ -749,7 +749,7 @@ a:hover {
   width: 100%;
   max-width: 500px;
   overflow: hidden;
-  box-shadow: var(--shadow-lg), 0 0 40px rgba(99, 102, 241, 0.15);
+  box-shadow: var(--shadow-lg), 0 0 40px rgba(124, 182, 129, 0.15);
   animation: slide-up 0.3s cubic-bezier(0.16, 1, 0.3, 1);
 }
 .modal-header {
@@ -986,24 +986,24 @@ a:hover {
   border-color: rgba(255, 255, 255, 0.08);
 }
 .calendar-cell.date-picker-cell:hover {
-  background-color: rgba(99, 102, 241, 0.08);
-  border-color: rgba(99, 102, 241, 0.3);
+  background-color: rgba(124, 182, 129, 0.08);
+  border-color: rgba(124, 182, 129, 0.3);
 }
 .calendar-cell.date-picker-cell.selected-start {
   background: linear-gradient(135deg, var(--color-primary), var(--color-secondary)) !important;
   border-color: var(--color-primary) !important;
   color: white !important;
-  box-shadow: 0 0 15px rgba(99, 102, 241, 0.4);
+  box-shadow: 0 0 15px rgba(124, 182, 129, 0.4);
 }
 .calendar-cell.date-picker-cell.selected-end {
   background: linear-gradient(135deg, var(--color-primary), #3b82f6) !important;
   border-color: var(--color-primary) !important;
   color: white !important;
-  box-shadow: 0 0 15px rgba(99, 102, 241, 0.4);
+  box-shadow: 0 0 15px rgba(124, 182, 129, 0.4);
 }
 .calendar-cell.date-picker-cell.selected-range {
-  background-color: rgba(99, 102, 241, 0.15) !important;
-  border-color: rgba(99, 102, 241, 0.4) !important;
+  background-color: rgba(124, 182, 129, 0.15) !important;
+  border-color: rgba(124, 182, 129, 0.4) !important;
 }
 
 /* Indicators for existing bookings in date picker cells */
@@ -1045,7 +1045,7 @@ a:hover {
 }
 .file-upload-wrapper:hover {
   border-color: var(--color-primary);
-  background-color: rgba(99, 102, 241, 0.04);
+  background-color: rgba(124, 182, 129, 0.04);
 }
 .file-upload-wrapper.has-file {
   border-color: var(--color-success);
@@ -1099,8 +1099,8 @@ a:hover {
 .type-card-option.selected {
   border-color: var(--color-primary);
   color: white;
-  background: linear-gradient(135deg, rgba(99, 102, 241, 0.15), rgba(99, 102, 241, 0.05));
-  box-shadow: 0 0 10px rgba(99, 102, 241, 0.1);
+  background: linear-gradient(135deg, rgba(124, 182, 129, 0.15), rgba(124, 182, 129, 0.05));
+  box-shadow: 0 0 10px rgba(124, 182, 129, 0.1);
 }
 
 /* Rejection / Note display */
@@ -1169,17 +1169,17 @@ a:hover {
 .calendar-cell.is-holiday {
   background: repeating-linear-gradient(
     45deg,
-    rgba(99, 102, 241, 0.05),
-    rgba(99, 102, 241, 0.05) 8px,
-    rgba(99, 102, 241, 0.12) 8px,
-    rgba(99, 102, 241, 0.12) 16px
+    rgba(124, 182, 129, 0.05),
+    rgba(124, 182, 129, 0.05) 8px,
+    rgba(124, 182, 129, 0.12) 8px,
+    rgba(124, 182, 129, 0.12) 16px
   ) !important;
-  border-color: rgba(99, 102, 241, 0.35) !important;
+  border-color: rgba(124, 182, 129, 0.35) !important;
   color: #c7d2fe !important;
 }
 .calendar-cell.is-holiday .calendar-day-num {
-  color: #a5b4fc;
-  text-shadow: 0 0 8px rgba(99, 102, 241, 0.4);
+  color: #a3d9aa;
+  text-shadow: 0 0 8px rgba(124, 182, 129, 0.4);
 }
 
 /* --- Login Page Styles --- */
@@ -1189,23 +1189,20 @@ a:hover {
   align-items: center;
   min-height: 100vh;
   width: 100vw;
-  background: radial-gradient(circle at 10% 20%, rgb(4, 8, 24) 0%, rgb(16, 24, 48) 90.1%);
+  background: radial-gradient(circle at 10% 20%, #000000 0%, #0c0f0c 90.1%);
   padding: 20px;
   box-sizing: border-box;
 }
 
-.login-glass-card {
-  width: 100%;
-  max-width: 480px;
-  background: rgba(30, 41, 59, 0.5);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 20px;
+.login-card {
+  background-color: var(--bg-sidebar);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
   padding: 40px;
-  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
-  color: var(--text-primary);
-  box-sizing: border-box;
+  width: 100%;
+  max-width: 450px;
+  box-shadow: var(--shadow-lg), 0 0 40px rgba(0, 0, 0, 0.5);
+  animation: fade-in 0.5s ease;
 }
 
 .login-header {
@@ -1217,7 +1214,7 @@ a:hover {
   font-size: 2rem;
   font-weight: 800;
   margin-bottom: 8px;
-  background: linear-gradient(135deg, #a5b4fc 0%, #6366f1 100%);
+  background: linear-gradient(135deg, #a3d9aa 0%, #7CB681 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
 }
@@ -1243,7 +1240,7 @@ a:hover {
 }
 
 .login-input {
-  background: rgba(15, 23, 42, 0.6);
+  background: rgba(10, 10, 10, 0.6);
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 10px;
   padding: 12px 16px;
@@ -1256,13 +1253,13 @@ a:hover {
 
 .login-input:focus {
   outline: none;
-  border-color: #6366f1;
-  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.25);
-  background: rgba(15, 23, 42, 0.8);
+  border-color: #7CB681;
+  box-shadow: 0 0 0 3px rgba(124, 182, 129, 0.25);
+  background: rgba(15, 15, 15, 0.8);
 }
 
 .login-submit-btn {
-  background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
+  background: linear-gradient(135deg, #7CB681 0%, #679f6c 100%);
   border: none;
   border-radius: 10px;
   padding: 14px;
@@ -1273,13 +1270,13 @@ a:hover {
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   margin-top: 10px;
   width: 100%;
-  box-shadow: 0 4px 15px rgba(99, 102, 241, 0.4);
+  box-shadow: 0 4px 15px rgba(124, 182, 129, 0.4);
 }
 
 .login-submit-btn:hover {
   transform: translateY(-2px);
-  box-shadow: 0 6px 20px rgba(99, 102, 241, 0.5);
-  background: linear-gradient(135deg, #818cf8 0%, #4f46e5 100%);
+  box-shadow: 0 6px 20px rgba(124, 182, 129, 0.5);
+  background: linear-gradient(135deg, #a3d9aa 0%, #679f6c 100%);
 }
 
 .login-submit-btn:active {
@@ -1339,8 +1336,8 @@ a:hover {
 }
 
 .quick-login-btn:hover {
-  background: rgba(99, 102, 241, 0.08);
-  border-color: rgba(99, 102, 241, 0.3);
+  background: rgba(124, 182, 129, 0.08);
+  border-color: rgba(124, 182, 129, 0.3);
   transform: translateY(-1px);
 }
 
@@ -1511,8 +1508,8 @@ a:hover {
 }
 
 .profile-dropdown-item.active {
-  background: rgba(99, 102, 241, 0.15);
-  color: #a5b4fc;
+  background: rgba(124, 182, 129, 0.15);
+  color: #a3d9aa;
   font-weight: 600;
 }
 
@@ -1558,14 +1555,14 @@ a:hover {
   width: 60px;
   height: 60px;
   border-radius: 50%;
-  background: linear-gradient(135deg, #818cf8 0%, #4f46e5 100%);
+  background: linear-gradient(135deg, #a3d9aa 0%, #679f6c 100%);
   color: white;
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 1.5rem;
   font-weight: 800;
-  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
+  box-shadow: 0 4px 12px rgba(124, 182, 129, 0.3);
 }
 
 .profile-header-meta {

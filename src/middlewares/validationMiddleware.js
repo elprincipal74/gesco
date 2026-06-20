@@ -16,6 +16,32 @@ const schemas = {
     iban: z.string().trim().optional()
   }),
   
+  userCreate: z.object({
+    name: z.string().trim().min(1, "Nome richiesto"),
+    email: z.string().email("Email non valida"),
+    password: z.string().trim().min(1, "Password richiesta"),
+    role: z.enum(["Dipendente", "Team Leader", "Admin", "HR"]),
+    phone: z.string().trim().optional().default(''),
+    address: z.string().trim().optional().default(''),
+    iban: z.string().trim().optional().default(''),
+    internal_cost: z.coerce.number().min(0, "Il costo interno non può essere negativo").default(0.0),
+    corporate_level: z.string().trim().max(4, "Il livello aziendale deve essere di massimo 4 caratteri").optional().default(''),
+    holiday_total: z.coerce.number().int().min(0).default(30)
+  }),
+  
+  userAdminUpdate: z.object({
+    name: z.string().trim().min(1, "Nome richiesto"),
+    email: z.string().email("Email non valida"),
+    password: z.string().trim().optional(),
+    role: z.enum(["Dipendente", "Team Leader", "Admin", "HR"]),
+    phone: z.string().trim().optional().default(''),
+    address: z.string().trim().optional().default(''),
+    iban: z.string().trim().optional().default(''),
+    internal_cost: z.coerce.number().min(0, "Il costo interno non può essere negativo").default(0.0),
+    corporate_level: z.string().trim().max(4, "Il livello aziendale deve essere di massimo 4 caratteri").optional().default(''),
+    holiday_total: z.coerce.number().int().min(0).default(30)
+  }),
+  
   requestCreate: z.object({
     startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Data inizio non valida (AAAA-MM-GG)"),
     endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Data fine non valida (AAAA-MM-GG)"),

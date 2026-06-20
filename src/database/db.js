@@ -36,7 +36,9 @@ if (!tableExists) {
       holiday_planned INTEGER DEFAULT 0,
       holiday_remaining INTEGER DEFAULT 30,
       sickness_days INTEGER DEFAULT 0,
-      study_days INTEGER DEFAULT 0
+      study_days INTEGER DEFAULT 0,
+      internal_cost REAL DEFAULT 0.0,
+      corporate_level TEXT DEFAULT ''
     )
   `);
 
@@ -133,6 +135,12 @@ if (!tableExists) {
       id TEXT PRIMARY KEY,
       name TEXT NOT NULL UNIQUE,
       description TEXT DEFAULT '',
+      sale_price REAL DEFAULT 0.0,
+      margin REAL DEFAULT 0.0,
+      start_date TEXT DEFAULT '',
+      end_date TEXT DEFAULT '',
+      responsible TEXT DEFAULT '',
+      project_manager TEXT DEFAULT '',
       createdAt TEXT NOT NULL
     )
   `);
@@ -171,13 +179,29 @@ if (!tableExists) {
         // Seed Users
         if (data.users && Array.isArray(data.users)) {
           const insertUser = db.prepare(`
-            INSERT INTO users (id, name, email, password, role, phone, address, iban, holiday_total, holiday_taken, holiday_planned, holiday_remaining, sickness_days, study_days)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO users (id, name, email, password, role, phone, address, iban, holiday_total, holiday_taken, holiday_planned, holiday_remaining, sickness_days, study_days, internal_cost, corporate_level)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
           `);
           data.users.forEach(user => {
             const hashedPassword = bcrypt.hashSync(user.email.toLowerCase(), 10); // email as password for compatibility
             const balance = user.holidayBalance || { totalDays: 30, takenDays: 0, plannedDays: 0, remainingDays: 30, sicknessDays: 0, studyDays: 0 };
             const role = user.email.toLowerCase() === 'giuseppe.verdi@azienda.it' ? 'Team Leader' : user.role;
+            let costVal = user.internal_cost || 0.0;
+            if (costVal === 0.0 || costVal === 0) {
+              if (user.email.toLowerCase() === 'mario.rossi@azienda.it') costVal = 120.0;
+              else if (user.email.toLowerCase() === 'luigi.bianchi@azienda.it') costVal = 100.0;
+              else if (user.email.toLowerCase() === 'giuseppe.verdi@azienda.it') costVal = 150.0;
+              else if (user.email.toLowerCase() === 'admin@azienda.it') costVal = 200.0;
+              else if (user.email.toLowerCase() === 'hr@azienda.it') costVal = 140.0;
+            }
+            let levelVal = user.corporate_level || '';
+            if (!levelVal) {
+              if (user.email.toLowerCase() === 'mario.rossi@azienda.it') levelVal = 'A1';
+              else if (user.email.toLowerCase() === 'luigi.bianchi@azienda.it') levelVal = 'B1';
+              else if (user.email.toLowerCase() === 'giuseppe.verdi@azienda.it') levelVal = 'TL';
+              else if (user.email.toLowerCase() === 'admin@azienda.it') levelVal = 'ADM';
+              else if (user.email.toLowerCase() === 'hr@azienda.it') levelVal = 'HR';
+            }
             insertUser.run(
               user.id,
               user.name,
@@ -192,7 +216,9 @@ if (!tableExists) {
               balance.plannedDays,
               balance.remainingDays,
               balance.sicknessDays || 0,
-              balance.studyDays || 0
+              balance.studyDays || 0,
+              costVal,
+              levelVal
             );
           });
         }
@@ -348,13 +374,29 @@ function resetDatabase() {
     // Seed Users
     if (data.users && Array.isArray(data.users)) {
       const insertUser = db.prepare(`
-        INSERT INTO users (id, name, email, password, role, phone, address, iban, holiday_total, holiday_taken, holiday_planned, holiday_remaining, sickness_days, study_days)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO users (id, name, email, password, role, phone, address, iban, holiday_total, holiday_taken, holiday_planned, holiday_remaining, sickness_days, study_days, internal_cost, corporate_level)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `);
       data.users.forEach(user => {
         const hashedPassword = bcrypt.hashSync(user.email.toLowerCase(), 10);
         const balance = user.holidayBalance || { totalDays: 30, takenDays: 0, plannedDays: 0, remainingDays: 30, sicknessDays: 0, studyDays: 0 };
         const role = user.email.toLowerCase() === 'giuseppe.verdi@azienda.it' ? 'Team Leader' : user.role;
+        let costVal = user.internal_cost || 0.0;
+        if (costVal === 0.0 || costVal === 0) {
+          if (user.email.toLowerCase() === 'mario.rossi@azienda.it') costVal = 120.0;
+          else if (user.email.toLowerCase() === 'luigi.bianchi@azienda.it') costVal = 100.0;
+          else if (user.email.toLowerCase() === 'giuseppe.verdi@azienda.it') costVal = 150.0;
+          else if (user.email.toLowerCase() === 'admin@azienda.it') costVal = 200.0;
+          else if (user.email.toLowerCase() === 'hr@azienda.it') costVal = 140.0;
+        }
+        let levelVal = user.corporate_level || '';
+        if (!levelVal) {
+          if (user.email.toLowerCase() === 'mario.rossi@azienda.it') levelVal = 'A1';
+          else if (user.email.toLowerCase() === 'luigi.bianchi@azienda.it') levelVal = 'B1';
+          else if (user.email.toLowerCase() === 'giuseppe.verdi@azienda.it') levelVal = 'TL';
+          else if (user.email.toLowerCase() === 'admin@azienda.it') levelVal = 'ADM';
+          else if (user.email.toLowerCase() === 'hr@azienda.it') levelVal = 'HR';
+        }
         insertUser.run(
           user.id,
           user.name,
@@ -369,7 +411,9 @@ function resetDatabase() {
           balance.plannedDays,
           balance.remainingDays,
           balance.sicknessDays || 0,
-          balance.studyDays || 0
+          balance.studyDays || 0,
+          costVal,
+          levelVal
         );
       });
     }
@@ -557,6 +601,47 @@ try {
   }
 } catch (err) {
   console.error("Errore durante la creazione della tabella absence_types nei database esistenti:", err);
+}
+
+// Migrazione colonne per i prezzi e margini delle commesse
+try {
+  db.prepare("SELECT sale_price FROM projects LIMIT 1").get();
+} catch (err) {
+  console.log("Aggiunta colonne sale_price e margin alla tabella projects...");
+  try {
+    db.exec("ALTER TABLE projects ADD COLUMN sale_price REAL DEFAULT 0.0");
+    db.exec("ALTER TABLE projects ADD COLUMN margin REAL DEFAULT 0.0");
+  } catch (alterErr) {
+    console.error("Errore nell'aggiunta di sale_price e margin a projects:", alterErr);
+  }
+}
+
+// Migrazione colonne per il costo interno e il livello aziendale dei dipendenti
+try {
+  db.prepare("SELECT internal_cost FROM users LIMIT 1").get();
+} catch (err) {
+  console.log("Aggiunta colonne internal_cost e corporate_level alla tabella users...");
+  try {
+    db.exec("ALTER TABLE users ADD COLUMN internal_cost REAL DEFAULT 0.0");
+    db.exec("ALTER TABLE users ADD COLUMN corporate_level TEXT DEFAULT ''");
+  } catch (alterErr) {
+    console.error("Errore nell'aggiunta di internal_cost e corporate_level a users:", alterErr);
+  }
+}
+
+// Migrazione colonne temporali e gestionali alla tabella projects per database esistenti
+try {
+  db.prepare("SELECT start_date FROM projects LIMIT 1").get();
+} catch (err) {
+  console.log("Aggiunta colonne temporali e gestionali alla tabella projects...");
+  try {
+    db.exec("ALTER TABLE projects ADD COLUMN start_date TEXT DEFAULT ''");
+    db.exec("ALTER TABLE projects ADD COLUMN end_date TEXT DEFAULT ''");
+    db.exec("ALTER TABLE projects ADD COLUMN responsible TEXT DEFAULT ''");
+    db.exec("ALTER TABLE projects ADD COLUMN project_manager TEXT DEFAULT ''");
+  } catch (alterErr) {
+    console.error("Errore nell'aggiunta di colonne temporali e gestionali a projects:", alterErr);
+  }
 }
 
 db.resetDatabase = resetDatabase;

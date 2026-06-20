@@ -14,7 +14,7 @@ function getProjects(req, res) {
 
 // POST /api/projects
 function createProject(req, res) {
-  const { name, description } = req.body;
+  const { name, description, sale_price, margin, start_date, end_date, responsible, project_manager } = req.body;
 
   if (!name || typeof name !== 'string' || name.trim() === '') {
     return res.status(400).json({ error: 'Il nome della commessa è obbligatorio.' });
@@ -23,11 +23,24 @@ function createProject(req, res) {
   try {
     const id = 'proj-' + Date.now();
     const createdAt = new Date().toISOString();
+    const salePriceVal = parseFloat(sale_price) || 0.0;
+    const marginVal = parseFloat(margin) || 0.0;
 
     db.prepare(`
-      INSERT INTO projects (id, name, description, createdAt)
-      VALUES (?, ?, ?, ?)
-    `).run(id, name.trim(), description || '', createdAt);
+      INSERT INTO projects (id, name, description, sale_price, margin, start_date, end_date, responsible, project_manager, createdAt)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      id, 
+      name.trim(), 
+      description || '', 
+      salePriceVal, 
+      marginVal, 
+      start_date || '', 
+      end_date || '', 
+      responsible || '', 
+      project_manager || '', 
+      createdAt
+    );
 
     const newProject = db.prepare('SELECT * FROM projects WHERE id = ?').get(id);
     res.status(201).json({ message: 'Commessa creata con successo', project: newProject });
@@ -43,7 +56,7 @@ function createProject(req, res) {
 // PUT /api/projects/:id
 function updateProject(req, res) {
   const { id } = req.params;
-  const { name, description } = req.body;
+  const { name, description, sale_price, margin, start_date, end_date, responsible, project_manager } = req.body;
 
   if (!name || typeof name !== 'string' || name.trim() === '') {
     return res.status(400).json({ error: 'Il nome della commessa è obbligatorio.' });
@@ -55,11 +68,24 @@ function updateProject(req, res) {
       return res.status(404).json({ error: 'Commessa non trovata.' });
     }
 
+    const salePriceVal = parseFloat(sale_price) || 0.0;
+    const marginVal = parseFloat(margin) || 0.0;
+
     db.prepare(`
       UPDATE projects
-      SET name = ?, description = ?
+      SET name = ?, description = ?, sale_price = ?, margin = ?, start_date = ?, end_date = ?, responsible = ?, project_manager = ?
       WHERE id = ?
-    `).run(name.trim(), description || '', id);
+    `).run(
+      name.trim(), 
+      description || '', 
+      salePriceVal, 
+      marginVal, 
+      start_date || '', 
+      end_date || '', 
+      responsible || '', 
+      project_manager || '', 
+      id
+    );
 
     const updatedProject = db.prepare('SELECT * FROM projects WHERE id = ?').get(id);
     res.json({ message: 'Commessa aggiornata con successo', project: updatedProject });

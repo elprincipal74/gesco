@@ -26,6 +26,7 @@ import {
   Send,
   Settings as SettingsIcon,
   Copy,
+  Sliders,
   Briefcase
 } from 'lucide-react';
 import { jsPDF } from 'jspdf';
@@ -176,9 +177,45 @@ export default function App() {
   const [projectReport, setProjectReport] = useState([]);
   const [newProjectName, setNewProjectName] = useState('');
   const [newProjectDescription, setNewProjectDescription] = useState('');
+  const [newProjectSalePrice, setNewProjectSalePrice] = useState('');
+  const [newProjectMargin, setNewProjectMargin] = useState('');
+  const [newProjectStartDate, setNewProjectStartDate] = useState('');
+  const [newProjectEndDate, setNewProjectEndDate] = useState('');
+  const [newProjectResponsible, setNewProjectResponsible] = useState('');
+  const [newProjectPM, setNewProjectPM] = useState('');
   const [editingProjectId, setEditingProjectId] = useState(null);
   const [editingProjectName, setEditingProjectName] = useState('');
   const [editingProjectDescription, setEditingProjectDescription] = useState('');
+  const [editingProjectSalePrice, setEditingProjectSalePrice] = useState('');
+  const [editingProjectMargin, setEditingProjectMargin] = useState('');
+  const [editingProjectStartDate, setEditingProjectStartDate] = useState('');
+  const [editingProjectEndDate, setEditingProjectEndDate] = useState('');
+  const [editingProjectResponsible, setEditingProjectResponsible] = useState('');
+  const [editingProjectPM, setEditingProjectPM] = useState('');
+
+  // Anagrafica Dipendenti State
+  const [newUserName, setNewUserName] = useState('');
+  const [newUserEmail, setNewUserEmail] = useState('');
+  const [newUserPassword, setNewUserPassword] = useState('');
+  const [newUserRole, setNewUserRole] = useState('Dipendente');
+  const [newUserPhone, setNewUserPhone] = useState('');
+  const [newUserAddress, setNewUserAddress] = useState('');
+  const [newUserIban, setNewUserIban] = useState('');
+  const [newUserInternalCost, setNewUserInternalCost] = useState('');
+  const [newUserCorporateLevel, setNewUserCorporateLevel] = useState('');
+  const [newUserHolidayTotal, setNewUserHolidayTotal] = useState(30);
+
+  const [editingUserId, setEditingUserId] = useState(null);
+  const [editingUserName, setEditingUserName] = useState('');
+  const [editingUserEmail, setEditingUserEmail] = useState('');
+  const [editingUserPassword, setEditingUserPassword] = useState('');
+  const [editingUserRole, setEditingUserRole] = useState('Dipendente');
+  const [editingUserPhone, setEditingUserPhone] = useState('');
+  const [editingUserAddress, setEditingUserAddress] = useState('');
+  const [editingUserIban, setEditingUserIban] = useState('');
+  const [editingUserInternalCost, setEditingUserInternalCost] = useState('');
+  const [editingUserCorporateLevel, setEditingUserCorporateLevel] = useState('');
+  const [editingUserHolidayTotal, setEditingUserHolidayTotal] = useState(30);
 
   // Absence Types State
   const [absenceTypes, setAbsenceTypes] = useState([]);
@@ -187,6 +224,13 @@ export default function App() {
   const [editingAbsenceId, setEditingAbsenceId] = useState(null);
   const [editingAbsenceName, setEditingAbsenceName] = useState('');
   const [editingAbsenceDescription, setEditingAbsenceDescription] = useState('');
+  
+  // Project Simulation State
+  const [simulatedProjectId, setSimulatedProjectId] = useState('');
+  const [simulatedResources, setSimulatedResources] = useState([]);
+  const [simulationsList, setSimulationsList] = useState([]);
+  const [activeSimulationId, setActiveSimulationId] = useState(null);
+  const [newSimulationName, setNewSimulationName] = useState('');
   
   const [currentUser, setCurrentUser] = useState(() => {
     try {
@@ -205,7 +249,7 @@ export default function App() {
         const user = JSON.parse(saved);
         if (user.role === 'Dipendente' || user.role === 'Team Leader') return 'dashboard';
         if (user.role === 'Admin') return 'approvals';
-        if (user.role === 'HR') return 'coverage';
+        if (user.role === 'HR') return 'reports';
       }
     } catch (e) {}
     return 'dashboard';
@@ -252,7 +296,7 @@ export default function App() {
       } else if (data.user.role === 'Admin') {
         setActiveTab('approvals');
       } else if (data.user.role === 'HR') {
-        setActiveTab('coverage');
+        setActiveTab('reports');
       }
       
       // Load data for the logged in user
@@ -291,7 +335,7 @@ export default function App() {
         } else if (data.user.role === 'Admin') {
           setActiveTab('approvals');
         } else if (data.user.role === 'HR') {
-          setActiveTab('coverage');
+          setActiveTab('reports');
         }
         
         // Load data for the logged in user
@@ -879,7 +923,8 @@ export default function App() {
   useEffect(() => {
     if (!currentUser) return;
     
-    if (activeTab === 'projects' && (currentUser.role === 'Admin' || currentUser.role === 'HR')) {
+    if ((activeTab === 'projects' && (currentUser.role === 'Admin' || currentUser.role === 'HR')) ||
+        (activeTab === 'simulation' && (currentUser.role === 'Admin' || currentUser.role === 'HR' || currentUser.role === 'Team Leader'))) {
       fetchAllProjects();
     }
     
@@ -939,13 +984,28 @@ export default function App() {
       const res = await fetch(`${API_BASE}/projects`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: newProjectName, description: newProjectDescription })
+        body: JSON.stringify({ 
+          name: newProjectName, 
+          description: newProjectDescription,
+          sale_price: parseFloat(newProjectSalePrice) || 0.0,
+          margin: parseFloat(newProjectMargin) || 0.0,
+          start_date: newProjectStartDate,
+          end_date: newProjectEndDate,
+          responsible: newProjectResponsible,
+          project_manager: newProjectPM
+        })
       });
       const data = await res.json();
       if (res.ok) {
         addToast("Commessa creata con successo!", "success");
         setNewProjectName('');
         setNewProjectDescription('');
+        setNewProjectSalePrice('');
+        setNewProjectMargin('');
+        setNewProjectStartDate('');
+        setNewProjectEndDate('');
+        setNewProjectResponsible('');
+        setNewProjectPM('');
         fetchAllProjects();
       } else {
         addToast(data.error || "Errore nella creazione della commessa", "error");
@@ -964,7 +1024,16 @@ export default function App() {
       const res = await fetch(`${API_BASE}/projects/${editingProjectId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: editingProjectName, description: editingProjectDescription })
+        body: JSON.stringify({ 
+          name: editingProjectName, 
+          description: editingProjectDescription,
+          sale_price: parseFloat(editingProjectSalePrice) || 0.0,
+          margin: parseFloat(editingProjectMargin) || 0.0,
+          start_date: editingProjectStartDate,
+          end_date: editingProjectEndDate,
+          responsible: editingProjectResponsible,
+          project_manager: editingProjectPM
+        })
       });
       const data = await res.json();
       if (res.ok) {
@@ -972,6 +1041,12 @@ export default function App() {
         setEditingProjectId(null);
         setEditingProjectName('');
         setEditingProjectDescription('');
+        setEditingProjectSalePrice('');
+        setEditingProjectMargin('');
+        setEditingProjectStartDate('');
+        setEditingProjectEndDate('');
+        setEditingProjectResponsible('');
+        setEditingProjectPM('');
         fetchAllProjects();
       } else {
         addToast(data.error || "Errore nell'aggiornamento della commessa", "error");
@@ -1118,6 +1193,138 @@ export default function App() {
       }
     } catch (err) {
       console.error("Error deleting absence type:", err);
+      addToast("Errore di connessione", "error");
+    }
+  };
+
+  const handleCreateUser = async (e) => {
+    e.preventDefault();
+    if (!newUserName.trim() || !newUserEmail.trim() || !newUserPassword.trim()) {
+      addToast("Nome, Email e Password sono obbligatori.", "error");
+      return;
+    }
+    if (newUserCorporateLevel.trim().length > 4) {
+      addToast("Il livello aziendale non può superare i 4 caratteri.", "error");
+      return;
+    }
+
+    try {
+      const res = await fetch(`${API_BASE}/users`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: newUserName.trim(),
+          email: newUserEmail.trim(),
+          password: newUserPassword,
+          role: newUserRole,
+          phone: newUserPhone,
+          address: newUserAddress,
+          iban: newUserIban,
+          internal_cost: parseFloat(newUserInternalCost) || 0.0,
+          corporate_level: newUserCorporateLevel.trim().toUpperCase(),
+          holiday_total: parseInt(newUserHolidayTotal) || 30
+        })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        addToast("Collaboratore creato con successo!", "success");
+        setNewUserName('');
+        setNewUserEmail('');
+        setNewUserPassword('');
+        setNewUserRole('Dipendente');
+        setNewUserPhone('');
+        setNewUserAddress('');
+        setNewUserIban('');
+        setNewUserInternalCost('');
+        setNewUserCorporateLevel('');
+        setNewUserHolidayTotal(30);
+        fetchData();
+      } else {
+        addToast(data.error || "Errore nella creazione del collaboratore", "error");
+      }
+    } catch (err) {
+      console.error("Error creating user:", err);
+      addToast("Errore di connessione", "error");
+    }
+  };
+
+  const handleUpdateUser = async (e) => {
+    e.preventDefault();
+    if (!editingUserName.trim() || !editingUserEmail.trim()) {
+      addToast("Nome ed Email sono obbligatori.", "error");
+      return;
+    }
+    if (editingUserCorporateLevel.trim().length > 4) {
+      addToast("Il livello aziendale non può superare i 4 caratteri.", "error");
+      return;
+    }
+
+    try {
+      const payload = {
+        name: editingUserName.trim(),
+        email: editingUserEmail.trim(),
+        role: editingUserRole,
+        phone: editingUserPhone,
+        address: editingUserAddress,
+        iban: editingUserIban,
+        internal_cost: parseFloat(editingUserInternalCost) || 0.0,
+        corporate_level: editingUserCorporateLevel.trim().toUpperCase(),
+        holiday_total: parseInt(editingUserHolidayTotal) || 30
+      };
+
+      if (editingUserPassword.trim() !== '') {
+        payload.password = editingUserPassword;
+      }
+
+      const res = await fetch(`${API_BASE}/users/${editingUserId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json();
+      if (res.ok) {
+        addToast("Collaboratore aggiornato con successo!", "success");
+        setEditingUserId(null);
+        setEditingUserName('');
+        setEditingUserEmail('');
+        setEditingUserPassword('');
+        setEditingUserRole('Dipendente');
+        setEditingUserPhone('');
+        setEditingUserAddress('');
+        setEditingUserIban('');
+        setEditingUserInternalCost('');
+        setEditingUserCorporateLevel('');
+        setEditingUserHolidayTotal(30);
+        fetchData();
+      } else {
+        addToast(data.error || "Errore nell'aggiornamento del collaboratore", "error");
+      }
+    } catch (err) {
+      console.error("Error updating user:", err);
+      addToast("Errore di connessione", "error");
+    }
+  };
+
+  const handleDeleteUser = async (id) => {
+    if (id === currentUser.id) {
+      addToast("Non puoi eliminare l'utente attualmente loggato.", "error");
+      return;
+    }
+    if (!window.confirm("Sei sicuro di voler eliminare questo collaboratore? Questa operazione eliminerà anche le sue richieste e rapportini.")) return;
+
+    try {
+      const res = await fetch(`${API_BASE}/users/${id}`, {
+        method: 'DELETE'
+      });
+      const data = await res.json();
+      if (res.ok) {
+        addToast("Collaboratore eliminato con successo!", "success");
+        fetchData();
+      } else {
+        addToast(data.error || "Errore nell'eliminazione del collaboratore", "error");
+      }
+    } catch (err) {
+      console.error("Error deleting user:", err);
       addToast("Errore di connessione", "error");
     }
   };
@@ -1581,7 +1788,7 @@ export default function App() {
         head: [['Dipendente', 'Tipo Assenza', 'Data Inizio', 'Data Fine', 'Giorni Lavorativi', 'Stato']],
         body: tableRows,
         theme: 'striped',
-        headStyles: { fillColor: [99, 102, 241], fontStyle: 'bold' },
+        headStyles: { fillColor: [124, 182, 129], fontStyle: 'bold' },
         styles: { font: 'Helvetica', fontSize: 10 },
         columnStyles: {
           5: { fontStyle: 'bold' }
@@ -1597,9 +1804,182 @@ export default function App() {
       addToast("Download del PDF avviato", "success");
     } catch (err) {
       console.error("PDF generation error:", err);
-      addToast("Errore durante la generazione del PDF", "error");
     }
   };
+
+  // --- LOGICA SIMULAZIONE COMMESSE ---
+  const handleSelectSimulatedProject = (projId) => {
+    setSimulatedProjectId(projId);
+    setNewSimulationName('');
+    if (!projId) {
+      setSimulationsList([]);
+      setActiveSimulationId(null);
+      setSimulatedResources([]);
+      return;
+    }
+    
+    // Load simulation history from localStorage
+    const saved = localStorage.getItem(`sim_history_${projId}`);
+    if (saved) {
+      try {
+        const parsedList = JSON.parse(saved);
+        setSimulationsList(parsedList);
+        
+        if (parsedList.length > 0) {
+          // Auto-load optimal scenario if it exists, otherwise the first scenario
+          const optimal = parsedList.find(s => s.isOptimal);
+          const activeScenario = optimal || parsedList[0];
+          setActiveSimulationId(activeScenario.id);
+          setSimulatedResources(JSON.parse(JSON.stringify(activeScenario.resources || [])));
+        } else {
+          setActiveSimulationId(null);
+          setSimulatedResources([]);
+        }
+      } catch (e) {
+        setSimulationsList([]);
+        setActiveSimulationId(null);
+        setSimulatedResources([]);
+      }
+    } else {
+      setSimulationsList([]);
+      setActiveSimulationId(null);
+      setSimulatedResources([]);
+    }
+  };
+
+  const handleAddSimulatedResource = () => {
+    const newRes = {
+      id: 'sim-' + Date.now() + '-' + Math.random().toString(36).substr(2, 4),
+      userId: '',
+      name: '',
+      cost: 0,
+      days: 0
+    };
+    const updated = [...simulatedResources, newRes];
+    setSimulatedResources(updated);
+  };
+
+  const handleRemoveSimulatedResource = (resId) => {
+    const updated = simulatedResources.filter(r => r.id !== resId);
+    setSimulatedResources(updated);
+  };
+
+  const handleResourceChange = (resId, field, val) => {
+    const updated = simulatedResources.map(r => {
+      if (r.id !== resId) return r;
+      
+      const newObj = { ...r, [field]: val };
+      
+      // If we are changing the userId
+      if (field === 'userId') {
+        if (val === 'custom') {
+          newObj.name = '';
+          newObj.cost = 0;
+        } else {
+          // Find employee
+          const emp = users.find(u => u.id === val);
+          if (emp) {
+            newObj.name = emp.name;
+            newObj.cost = emp.internal_cost !== undefined && emp.internal_cost !== null ? emp.internal_cost : 0;
+          }
+        }
+      }
+      return newObj;
+    });
+    setSimulatedResources(updated);
+  };
+
+  const handleSaveSimulation = () => {
+    if (!simulatedProjectId) return;
+    const nameToSave = newSimulationName.trim() || `Simulazione #${simulationsList.length + 1}`;
+    
+    const newSim = {
+      id: 'sim-' + Date.now() + '-' + Math.random().toString(36).substr(2, 4),
+      name: nameToSave,
+      isOptimal: false,
+      resources: JSON.parse(JSON.stringify(simulatedResources))
+    };
+    
+    const updatedList = [...simulationsList, newSim];
+    setSimulationsList(updatedList);
+    setActiveSimulationId(newSim.id);
+    localStorage.setItem(`sim_history_${simulatedProjectId}`, JSON.stringify(updatedList));
+    setNewSimulationName('');
+    addToast(`Pianificazione "${nameToSave}" salvata nello storico`, "success");
+  };
+
+  const handleUpdateActiveSimulation = () => {
+    if (!activeSimulationId || !simulatedProjectId) return;
+    const foundSim = simulationsList.find(s => s.id === activeSimulationId);
+    const nameToSave = newSimulationName.trim() || (foundSim ? foundSim.name : `Simulazione #${simulationsList.length}`);
+    const updatedList = simulationsList.map(sim => {
+      if (sim.id === activeSimulationId) {
+        return {
+          ...sim,
+          name: nameToSave,
+          resources: JSON.parse(JSON.stringify(simulatedResources))
+        };
+      }
+      return sim;
+    });
+    setSimulationsList(updatedList);
+    localStorage.setItem(`sim_history_${simulatedProjectId}`, JSON.stringify(updatedList));
+    setNewSimulationName('');
+    addToast(`Pianificazione "${nameToSave}" aggiornata con successo`, "success");
+  };
+
+  const handleLoadSimulation = (simId) => {
+    const found = simulationsList.find(s => s.id === simId);
+    if (found) {
+      setActiveSimulationId(simId);
+      setSimulatedResources(JSON.parse(JSON.stringify(found.resources || [])));
+      addToast(`Caricato lo scenario "${found.name}"`, "success");
+    }
+  };
+
+  const handleCreateNewSimulation = () => {
+    setActiveSimulationId(null);
+    setSimulatedResources([]);
+    setNewSimulationName('');
+    addToast("Nuova pianificazione vuota inizializzata", "info");
+  };
+
+  const handleDeleteSimulation = (simId) => {
+    const toDelete = simulationsList.find(s => s.id === simId);
+    const updatedList = simulationsList.filter(s => s.id !== simId);
+    setSimulationsList(updatedList);
+    localStorage.setItem(`sim_history_${simulatedProjectId}`, JSON.stringify(updatedList));
+    
+    if (activeSimulationId === simId) {
+      if (updatedList.length > 0) {
+        const optimal = updatedList.find(s => s.isOptimal);
+        const nextActive = optimal || updatedList[0];
+        setActiveSimulationId(nextActive.id);
+        setSimulatedResources(JSON.parse(JSON.stringify(nextActive.resources || [])));
+      } else {
+        setActiveSimulationId(null);
+        setSimulatedResources([]);
+      }
+    }
+    if (toDelete) {
+      addToast(`Pianificazione "${toDelete.name}" eliminata`, "info");
+    }
+  };
+
+  const handleSetOptimalSimulation = (simId) => {
+    const updatedList = simulationsList.map(s => ({
+      ...s,
+      isOptimal: s.id === simId
+    }));
+    setSimulationsList(updatedList);
+    localStorage.setItem(`sim_history_${simulatedProjectId}`, JSON.stringify(updatedList));
+    
+    const found = updatedList.find(s => s.id === simId);
+    if (found) {
+      addToast(`Scenario "${found.name}" impostato come PIANIFICAZIONE OTTIMALE`, "success");
+    }
+  };
+
 
   const currentEmployeeRequests = requests.filter(r => currentUser && r.userId === currentUser.id);
 
@@ -1620,8 +2000,8 @@ export default function App() {
 
         <div className="login-glass-card">
           <div className="login-header">
-            <h2>Sistema Ferie</h2>
-            <p>Accedi al portale di gestione ferie e assenze</p>
+            <h2>Gestione Commesse</h2>
+            <p>Accedi al portale di pianificazione e gestione commesse</p>
           </div>
 
           {loginError && (
@@ -1707,8 +2087,8 @@ export default function App() {
       {/* Sidebar Navigation */}
       <aside className="sidebar">
         <div className="logo-section">
-          <div className="logo-icon">F</div>
-          <div className="logo-text">Sistema Ferie</div>
+          <div className="logo-icon">C</div>
+          <div className="logo-text">Gestione Commesse</div>
         </div>
         
         <nav className="nav-links">
@@ -1733,13 +2113,22 @@ export default function App() {
           )}
 
           {currentUser && (currentUser.role === 'Admin' || currentUser.role === 'HR' || currentUser.role === 'Team Leader') && (
-            <div 
-              className={`nav-item ${activeTab === 'timesheet-approvals' ? 'active' : ''}`}
-              onClick={() => { setActiveTab('timesheet-approvals'); resetSelection(); }}
-            >
-              <FileCheck className="nav-item-icon" />
-              <span>Approvazioni Rapportini</span>
-            </div>
+            <>
+              <div 
+                className={`nav-item ${activeTab === 'timesheet-approvals' ? 'active' : ''}`}
+                onClick={() => { setActiveTab('timesheet-approvals'); resetSelection(); }}
+              >
+                <FileCheck className="nav-item-icon" />
+                <span>Approvazioni Rapportini</span>
+              </div>
+              <div 
+                className={`nav-item ${activeTab === 'simulation' ? 'active' : ''}`}
+                onClick={() => { setActiveTab('simulation'); resetSelection(); }}
+              >
+                <Sliders className="nav-item-icon" />
+                <span>Simulazione Commesse</span>
+              </div>
+            </>
           )}
           
           {currentUser && (currentUser.role === 'Admin' || currentUser.role === 'HR') && (
@@ -1755,19 +2144,11 @@ export default function App() {
           {currentUser && (currentUser.role === 'Admin' || currentUser.role === 'HR') && (
             <>
               <div 
-                className={`nav-item ${activeTab === 'coverage' ? 'active' : ''}`}
-                onClick={() => { setActiveTab('coverage'); resetSelection(); }}
-              >
-                <CalendarIcon className="nav-item-icon" />
-                <span>Calendario Copertura</span>
-              </div>
-              
-              <div 
                 className={`nav-item ${activeTab === 'reports' ? 'active' : ''}`}
                 onClick={() => { setActiveTab('reports'); resetSelection(); }}
               >
                 <FileText className="nav-item-icon" />
-                <span>Reportistica</span>
+                <span>REPORTISTICA</span>
               </div>
               
               <div 
@@ -1778,14 +2159,33 @@ export default function App() {
                 <span>Impostazioni</span>
               </div>
 
-              {currentUser.role === 'Admin' && (
+              {(currentUser.role === 'Admin' || currentUser.role === 'HR') && (
                 <div 
-                  className={`nav-item ${activeTab === 'projects' ? 'active' : ''}`}
-                  onClick={() => { setActiveTab('projects'); resetSelection(); }}
+                  className={`nav-item ${activeTab === 'users' ? 'active' : ''}`}
+                  onClick={() => { setActiveTab('users'); resetSelection(); }}
                 >
-                  <Briefcase className="nav-item-icon" />
-                  <span>Gestione Commesse</span>
+                  <Users className="nav-item-icon" />
+                  <span>Anagrafica Collaboratori</span>
                 </div>
+              )}
+
+              {currentUser.role === 'Admin' && (
+                <>
+                  <div 
+                    className={`nav-item ${activeTab === 'projects' ? 'active' : ''}`}
+                    onClick={() => { setActiveTab('projects'); resetSelection(); }}
+                  >
+                    <Briefcase className="nav-item-icon" />
+                    <span>Gestione Commesse</span>
+                  </div>
+                  <div 
+                    className={`nav-item ${activeTab === 'absences' ? 'active' : ''}`}
+                    onClick={() => { setActiveTab('absences'); resetSelection(); }}
+                  >
+                    <Layers className="nav-item-icon" />
+                    <span>Gestione Tipi Assenza</span>
+                  </div>
+                </>
               )}
               
               <div 
@@ -1820,9 +2220,11 @@ export default function App() {
           <h1 className="header-title">
             {activeTab === 'dashboard' && 'Area Personale Dipendente'}
             {activeTab === 'approvals' && 'Pannello Approvazioni Richieste'}
-            {activeTab === 'coverage' && 'Prospetto Generale Copertura'}
-            {activeTab === 'reports' && 'Cruscotto Reportistica'}
+            {activeTab === 'reports' && 'REPORTISTICA'}
             {activeTab === 'projects' && 'Gestione Commesse / Progettualità'}
+            {activeTab === 'users' && 'Anagrafica Collaboratori'}
+            {activeTab === 'absences' && 'Gestione Tipologie Assenze'}
+            {activeTab === 'simulation' && 'Simulatore Margine Commessa'}
             {activeTab === 'profile' && 'I Miei Dati Personali'}
             {activeTab === 'communications' && 'Comunicazioni e Avvisi'}
           </h1>
@@ -1978,13 +2380,22 @@ export default function App() {
                     )}
 
                     {(currentUser.role === 'Admin' || currentUser.role === 'HR' || currentUser.role === 'Team Leader') && (
-                      <button 
-                        className={`profile-dropdown-item ${activeTab === 'timesheet-approvals' ? 'active' : ''}`}
-                        onClick={() => { setActiveTab('timesheet-approvals'); setShowProfileDropdown(false); }}
-                      >
-                        <FileCheck size={14} />
-                        <span>Approvazioni Rapportini</span>
-                      </button>
+                      <>
+                        <button 
+                          className={`profile-dropdown-item ${activeTab === 'timesheet-approvals' ? 'active' : ''}`}
+                          onClick={() => { setActiveTab('timesheet-approvals'); setShowProfileDropdown(false); }}
+                        >
+                          <FileCheck size={14} />
+                          <span>Approvazioni Rapportini</span>
+                        </button>
+                        <button 
+                          className={`profile-dropdown-item ${activeTab === 'simulation' ? 'active' : ''}`}
+                          onClick={() => { setActiveTab('simulation'); setShowProfileDropdown(false); }}
+                        >
+                          <Sliders size={14} />
+                          <span>Simulazione Commesse</span>
+                        </button>
+                      </>
                     )}
                     
                     {(currentUser.role === 'Admin' || currentUser.role === 'HR') && (
@@ -2000,13 +2411,6 @@ export default function App() {
                     {(currentUser.role === 'Admin' || currentUser.role === 'HR') && (
                       <>
                         <button 
-                          className={`profile-dropdown-item ${activeTab === 'coverage' ? 'active' : ''}`}
-                          onClick={() => { setActiveTab('coverage'); setShowProfileDropdown(false); }}
-                        >
-                          <CalendarIcon size={14} />
-                          <span>Calendario Copertura</span>
-                        </button>
-                        <button 
                           className={`profile-dropdown-item ${activeTab === 'reports' ? 'active' : ''}`}
                           onClick={() => { setActiveTab('reports'); setShowProfileDropdown(false); }}
                         >
@@ -2020,14 +2424,32 @@ export default function App() {
                           <SettingsIcon size={14} />
                           <span>Impostazioni</span>
                         </button>
-                        {currentUser.role === 'Admin' && (
+                        {(currentUser.role === 'Admin' || currentUser.role === 'HR') && (
                           <button 
-                            className={`profile-dropdown-item ${activeTab === 'projects' ? 'active' : ''}`}
-                            onClick={() => { setActiveTab('projects'); setShowProfileDropdown(false); }}
+                            className={`profile-dropdown-item ${activeTab === 'users' ? 'active' : ''}`}
+                            onClick={() => { setActiveTab('users'); setShowProfileDropdown(false); }}
                           >
-                            <Briefcase size={14} />
-                            <span>Gestione Commesse</span>
+                            <Users size={14} />
+                            <span>Anagrafica Collaboratori</span>
                           </button>
+                        )}
+                        {currentUser.role === 'Admin' && (
+                          <>
+                            <button 
+                              className={`profile-dropdown-item ${activeTab === 'projects' ? 'active' : ''}`}
+                              onClick={() => { setActiveTab('projects'); setShowProfileDropdown(false); }}
+                            >
+                              <Briefcase size={14} />
+                              <span>Gestione Commesse</span>
+                            </button>
+                            <button 
+                              className={`profile-dropdown-item ${activeTab === 'absences' ? 'active' : ''}`}
+                              onClick={() => { setActiveTab('absences'); setShowProfileDropdown(false); }}
+                            >
+                              <Layers size={14} />
+                              <span>Gestione Tipi Assenza</span>
+                            </button>
+                          </>
                         )}
                         <button 
                           className={`profile-dropdown-item ${activeTab === 'communications' ? 'active' : ''}`}
@@ -2462,87 +2884,85 @@ export default function App() {
             </div>
           )}
 
-          {/* TAB 3: CALENDARIO COPERTURA HEATMAP (HR/ADMIN) */}
-          {activeTab === 'coverage' && currentUser && (currentUser.role === 'Admin' || currentUser.role === 'HR') && (
-            <div className="glass-card">
-              <div className="calendar-heatmap-container">
-                <div className="calendar-controls">
-                  <h3 className="card-title">
-                    <CalendarIcon size={18} style={{ color: 'var(--color-primary)' }} />
-                    Prospetto Generale Copertura
-                  </h3>
-                  
-                  <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-                    <button 
-                      className="btn btn-secondary btn-sm"
-                      onClick={() => {
-                        if (calendarMonth === 0) {
-                          setCalendarMonth(11);
-                          setCalendarYear(prev => prev - 1);
-                        } else {
-                          setCalendarMonth(prev => prev - 1);
-                        }
-                      }}
-                    >
-                      <ChevronLeft size={16} />
-                    </button>
-                    <span className="calendar-month-title" style={{ minWidth: '150px', textAlign: 'center' }}>
-                      {MONTHS_IT[calendarMonth]} {calendarYear}
-                    </span>
-                    <button 
-                      className="btn btn-secondary btn-sm"
-                      onClick={() => {
-                        if (calendarMonth === 11) {
-                          setCalendarMonth(0);
-                          setCalendarYear(prev => prev + 1);
-                        } else {
-                          setCalendarMonth(prev => prev + 1);
-                        }
-                      }}
-                    >
-                      <ChevronRight size={16} />
-                    </button>
-                  </div>
-                </div>
-
-                <div className="calendar-grid-header">
-                  <div>Lun</div>
-                  <div>Mar</div>
-                  <div>Mer</div>
-                  <div>Gio</div>
-                  <div>Ven</div>
-                  <div>Sab</div>
-                  <div>Dom</div>
-                </div>
-
-                <div className="calendar-days-grid">
-                  {renderCalendar()}
-                </div>
-
-                <div className="calendar-legend">
-                  <div className="legend-item">
-                    <div className="legend-color normal" />
-                    <span>Copertura sufficiente / Weekend</span>
-                  </div>
-                  <div className="legend-item">
-                    <div className="legend-color" style={{ background: 'repeating-linear-gradient(45deg, rgba(99, 102, 241, 0.05), rgba(99, 102, 241, 0.05) 8px, rgba(99, 102, 241, 0.12) 8px, rgba(99, 102, 241, 0.12) 16px)', borderColor: 'rgba(99, 102, 241, 0.35)' }} />
-                    <span>Festività Nazionali Italiane</span>
-                  </div>
-                  <div className="legend-item">
-                    <div className="legend-color alert" />
-                    <span style={{ fontWeight: '600', color: 'var(--color-danger)' }}>
-                      Alert Periodo Scoperto (Assenze &gt; 50%)
-                    </span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-
           {/* TAB 4: REPORTISTICA ED ESPORTAZIONE (HR/ADMIN) */}
           {activeTab === 'reports' && currentUser && (currentUser.role === 'Admin' || currentUser.role === 'HR') && (
             <div className="charts-grid">
               
+              {/* Calendario Copertura Heatmap */}
+              <div className="glass-card">
+                <div className="calendar-heatmap-container">
+                  <div className="calendar-controls">
+                    <h3 className="card-title">
+                      <CalendarIcon size={18} style={{ color: 'var(--color-primary)' }} />
+                      Prospetto Generale Copertura
+                    </h3>
+                    
+                    <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                      <button 
+                        className="btn btn-secondary btn-sm"
+                        onClick={() => {
+                          if (calendarMonth === 0) {
+                            setCalendarMonth(11);
+                            setCalendarYear(prev => prev - 1);
+                          } else {
+                            setCalendarMonth(prev => prev - 1);
+                          }
+                        }}
+                      >
+                        <ChevronLeft size={16} />
+                      </button>
+                      <span className="calendar-month-title" style={{ minWidth: '150px', textAlign: 'center' }}>
+                        {MONTHS_IT[calendarMonth]} {calendarYear}
+                      </span>
+                      <button 
+                        className="btn btn-secondary btn-sm"
+                        onClick={() => {
+                          if (calendarMonth === 11) {
+                            setCalendarMonth(0);
+                            setCalendarYear(prev => prev + 1);
+                          } else {
+                            setCalendarMonth(prev => prev + 1);
+                          }
+                        }}
+                      >
+                        <ChevronRight size={16} />
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="calendar-grid-header">
+                    <div>Lun</div>
+                    <div>Mar</div>
+                    <div>Mer</div>
+                    <div>Gio</div>
+                    <div>Ven</div>
+                    <div>Sab</div>
+                    <div>Dom</div>
+                  </div>
+
+                  <div className="calendar-days-grid">
+                    {renderCalendar()}
+                  </div>
+
+                  <div className="calendar-legend">
+                    <div className="legend-item">
+                      <div className="legend-color normal" />
+                      <span>Copertura sufficiente / Weekend</span>
+                    </div>
+                    <div className="legend-item">
+                      <div className="legend-color" style={{ background: 'repeating-linear-gradient(45deg, rgba(124, 182, 129, 0.05), rgba(124, 182, 129, 0.05) 8px, rgba(124, 182, 129, 0.12) 8px, rgba(124, 182, 129, 0.12) 16px)', borderColor: 'rgba(124, 182, 129, 0.35)' }} />
+                      <span>Festività Nazionali Italiane</span>
+                    </div>
+                    <div className="legend-item">
+                      <div className="legend-color alert" />
+                      <span style={{ fontWeight: '600', color: 'var(--color-danger)' }}>
+                        Alert Periodo Scoperto (Assenze &gt; 50%)
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
               {/* Filter controls */}
               <div className="glass-card">
                 <div className="report-controls">
@@ -2973,7 +3393,7 @@ export default function App() {
                           required
                         />
                       </div>
-                      <div className="form-group" style={{ marginBottom: '20px' }}>
+                      <div className="form-group" style={{ marginBottom: '15px' }}>
                         <label className="form-label">Descrizione Progetto</label>
                         <textarea 
                           className="form-input"
@@ -2981,6 +3401,69 @@ export default function App() {
                           value={editingProjectId ? editingProjectDescription : newProjectDescription}
                           onChange={(e) => editingProjectId ? setEditingProjectDescription(e.target.value) : setNewProjectDescription(e.target.value)}
                           style={{ minHeight: '80px', resize: 'vertical', padding: '10px' }}
+                        />
+                      </div>
+                      <div className="form-group" style={{ marginBottom: '15px' }}>
+                        <label className="form-label">Prezzo di Vendita (€)</label>
+                        <input 
+                          type="number" 
+                          className="form-input"
+                          placeholder="es. 15000.00"
+                          step="0.01"
+                          min="0"
+                          value={editingProjectId ? editingProjectSalePrice : newProjectSalePrice}
+                          onChange={(e) => editingProjectId ? setEditingProjectSalePrice(e.target.value) : setNewProjectSalePrice(e.target.value)}
+                        />
+                      </div>
+                      <div className="form-group" style={{ marginBottom: '15px' }}>
+                        <label className="form-label">Margine Atteso (%)</label>
+                        <input 
+                          type="number" 
+                          className="form-input"
+                          placeholder="es. 20"
+                          step="0.1"
+                          min="0"
+                          max="100"
+                          value={editingProjectId ? editingProjectMargin : newProjectMargin}
+                          onChange={(e) => editingProjectId ? setEditingProjectMargin(e.target.value) : setNewProjectMargin(e.target.value)}
+                        />
+                      </div>
+                      <div className="form-group" style={{ marginBottom: '15px' }}>
+                        <label className="form-label">Data Inizio</label>
+                        <input 
+                          type="date" 
+                          className="form-input"
+                          value={editingProjectId ? editingProjectStartDate : newProjectStartDate}
+                          onChange={(e) => editingProjectId ? setEditingProjectStartDate(e.target.value) : setNewProjectStartDate(e.target.value)}
+                        />
+                      </div>
+                      <div className="form-group" style={{ marginBottom: '15px' }}>
+                        <label className="form-label">Data Fine</label>
+                        <input 
+                          type="date" 
+                          className="form-input"
+                          value={editingProjectId ? editingProjectEndDate : newProjectEndDate}
+                          onChange={(e) => editingProjectId ? setEditingProjectEndDate(e.target.value) : setNewProjectEndDate(e.target.value)}
+                        />
+                      </div>
+                      <div className="form-group" style={{ marginBottom: '15px' }}>
+                        <label className="form-label">Responsabile Commessa</label>
+                        <input 
+                          type="text" 
+                          className="form-input"
+                          placeholder="Nome del responsabile"
+                          value={editingProjectId ? editingProjectResponsible : newProjectResponsible}
+                          onChange={(e) => editingProjectId ? setEditingProjectResponsible(e.target.value) : setNewProjectResponsible(e.target.value)}
+                        />
+                      </div>
+                      <div className="form-group" style={{ marginBottom: '20px' }}>
+                        <label className="form-label">Project Manager</label>
+                        <input 
+                          type="text" 
+                          className="form-input"
+                          placeholder="Nome del Project Manager"
+                          value={editingProjectId ? editingProjectPM : newProjectPM}
+                          onChange={(e) => editingProjectId ? setEditingProjectPM(e.target.value) : setNewProjectPM(e.target.value)}
                         />
                       </div>
                       <div style={{ display: 'flex', gap: '10px' }}>
@@ -2996,6 +3479,12 @@ export default function App() {
                               setEditingProjectId(null);
                               setEditingProjectName('');
                               setEditingProjectDescription('');
+                              setEditingProjectSalePrice('');
+                              setEditingProjectMargin('');
+                              setEditingProjectStartDate('');
+                              setEditingProjectEndDate('');
+                              setEditingProjectResponsible('');
+                              setEditingProjectPM('');
                             }}
                           >
                             Annulla
@@ -3079,7 +3568,90 @@ export default function App() {
                   </div>
                 </div>
 
-                {/* Card 3: Creazione/Modifica Tipi Assenza */}
+              </div>
+
+              {/* Elenco Commesse Totale */}
+              <div className="glass-card">
+                <div className="card-header">
+                  <h3 className="card-title">Commesse Configurate</h3>
+                </div>
+                <div className="custom-table-container">
+                  <table className="custom-table">
+                    <thead>
+                      <tr>
+                        <th>Nome Commessa</th>
+                        <th>Descrizione</th>
+                        <th>Responsabile</th>
+                        <th>Project Manager</th>
+                        <th>Data Inizio</th>
+                        <th>Data Fine</th>
+                        <th>Prezzo Vendita</th>
+                        <th>Margine Atteso</th>
+                        <th>Data Creazione</th>
+                        <th style={{ width: '150px', textAlign: 'center' }}>Azioni</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {projects.length === 0 ? (
+                        <tr>
+                          <td colSpan="10" style={{ textAlign: 'center', color: 'var(--text-muted)' }}>
+                            Nessuna commessa configurata.
+                          </td>
+                        </tr>
+                      ) : (
+                        projects.map(p => (
+                          <tr key={p.id}>
+                            <td style={{ fontWeight: '600' }}>{p.name}</td>
+                            <td>{p.description || '—'}</td>
+                            <td>{p.responsible || '—'}</td>
+                            <td>{p.project_manager || '—'}</td>
+                            <td>{p.start_date ? new Date(p.start_date).toLocaleDateString('it-IT') : '—'}</td>
+                            <td>{p.end_date ? new Date(p.end_date).toLocaleDateString('it-IT') : '—'}</td>
+                            <td>{p.sale_price !== undefined && p.sale_price !== null ? `€ ${parseFloat(p.sale_price).toFixed(2)}` : '€ 0.00'}</td>
+                            <td>{p.margin !== undefined && p.margin !== null ? `${p.margin}%` : '0%'}</td>
+                            <td>{new Date(p.createdAt).toLocaleDateString('it-IT')}</td>
+                            <td style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
+                              <button 
+                                className="btn btn-secondary btn-sm"
+                                onClick={() => {
+                                  setEditingProjectId(p.id);
+                                  setEditingProjectName(p.name);
+                                  setEditingProjectDescription(p.description);
+                                  setEditingProjectSalePrice(p.sale_price !== undefined && p.sale_price !== null ? String(p.sale_price) : '');
+                                  setEditingProjectMargin(p.margin !== undefined && p.margin !== null ? String(p.margin) : '');
+                                  setEditingProjectStartDate(p.start_date || '');
+                                  setEditingProjectEndDate(p.end_date || '');
+                                  setEditingProjectResponsible(p.responsible || '');
+                                  setEditingProjectPM(p.project_manager || '');
+                                }}
+                              >
+                                Modifica
+                              </button>
+                              <button 
+                                className="btn btn-danger btn-sm"
+                                onClick={() => handleDeleteProject(p.id)}
+                              >
+                                Elimina
+                              </button>
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+            </div>
+          )}
+
+          {/* TAB: GESTIONE TIPI ASSENZA (ADMIN ONLY) */}
+          {activeTab === 'absences' && currentUser && currentUser.role === 'Admin' && (
+            <div className="absences-tab-container" style={{ display: 'flex', flexDirection: 'column', gap: '30px' }}>
+              
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '30px' }}>
+                
+                {/* Card 1: Creazione/Modifica Tipi Assenza */}
                 <div className="glass-card">
                   <div className="card-header">
                     <h3 className="card-title" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -3133,60 +3705,6 @@ export default function App() {
                   </div>
                 </div>
 
-              </div>
-
-              {/* Elenco Commesse Totale */}
-              <div className="glass-card">
-                <div className="card-header">
-                  <h3 className="card-title">Commesse Configurate</h3>
-                </div>
-                <div className="custom-table-container">
-                  <table className="custom-table">
-                    <thead>
-                      <tr>
-                        <th>Nome Commessa</th>
-                        <th>Descrizione</th>
-                        <th>Data Creazione</th>
-                        <th style={{ width: '150px', textAlign: 'center' }}>Azioni</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {projects.length === 0 ? (
-                        <tr>
-                          <td colSpan="4" style={{ textAlign: 'center', color: 'var(--text-muted)' }}>
-                            Nessuna commessa configurata.
-                          </td>
-                        </tr>
-                      ) : (
-                        projects.map(p => (
-                          <tr key={p.id}>
-                            <td style={{ fontWeight: '600' }}>{p.name}</td>
-                            <td>{p.description || '—'}</td>
-                            <td>{new Date(p.createdAt).toLocaleDateString('it-IT')}</td>
-                            <td style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
-                              <button 
-                                className="btn btn-secondary btn-sm"
-                                onClick={() => {
-                                  setEditingProjectId(p.id);
-                                  setEditingProjectName(p.name);
-                                  setEditingProjectDescription(p.description);
-                                }}
-                              >
-                                Modifica
-                              </button>
-                              <button 
-                                className="btn btn-danger btn-sm"
-                                onClick={() => handleDeleteProject(p.id)}
-                              >
-                                Elimina
-                              </button>
-                            </td>
-                          </tr>
-                        ))
-                      )}
-                    </tbody>
-                  </table>
-                </div>
               </div>
 
               {/* Elenco Tipi Assenza Totale */}
@@ -3243,6 +3761,675 @@ export default function App() {
                 </div>
               </div>
 
+            </div>
+          )}
+
+          {/* TAB: SIMULAZIONE COMMESSE */}
+          {activeTab === 'simulation' && currentUser && (currentUser.role === 'Admin' || currentUser.role === 'HR' || currentUser.role === 'Team Leader') && (
+            <div className="simulation-tab-container" style={{ display: 'flex', flexDirection: 'column', gap: '30px' }}>
+              <div className="glass-card">
+                <div className="card-header">
+                  <h3 className="card-title" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <Sliders size={18} style={{ color: 'var(--color-primary)' }} />
+                    Seleziona Commessa da Simulare
+                  </h3>
+                </div>
+                <div className="card-body" style={{ padding: '20px' }}>
+                  <div className="form-group" style={{ maxWidth: '400px', margin: 0 }}>
+                    <select
+                      className="form-input"
+                      value={simulatedProjectId}
+                      onChange={(e) => handleSelectSimulatedProject(e.target.value)}
+                    >
+                      <option value="">Seleziona una commessa...</option>
+                      {projects.map(p => (
+                        <option key={p.id} value={p.id}>{p.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              {simulatedProjectId ? (() => {
+                const project = projects.find(p => p.id === simulatedProjectId);
+                if (!project) return null;
+
+                // Calcolo giorni solari di durata
+                const start = project.start_date ? new Date(project.start_date) : null;
+                const end = project.end_date ? new Date(project.end_date) : null;
+                let durationDays = 0;
+                if (start && end) {
+                  const diffTime = Math.abs(end - start);
+                  durationDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1; // inclusivo
+                }
+
+                // Financial metrics
+                const salePrice = parseFloat(project.sale_price) || 0;
+                const targetMarginPercent = parseFloat(project.margin) || 0;
+                const targetMarginEur = (salePrice * targetMarginPercent) / 100;
+
+                // Simulated Costs
+                const totalCosts = simulatedResources.reduce((sum, res) => sum + (parseFloat(res.cost) || 0) * (parseFloat(res.days) || 0), 0);
+                const simulatedMarginEur = salePrice - totalCosts;
+                const simulatedMarginPercent = salePrice > 0 ? (simulatedMarginEur / salePrice) * 100 : 0;
+                const marginDelta = simulatedMarginPercent - targetMarginPercent;
+
+                return (
+                  <div style={{ display: 'grid', gridTemplateColumns: '3fr 2fr', gap: '30px' }} className="simulation-details-layout">
+                    {/* Left Panel: Details and Resources table */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '30px' }}>
+                      {/* Project Details Panel */}
+                      <div className="glass-card">
+                        <div className="card-header">
+                          <h3 className="card-title">Dettagli Commessa: {project.name}</h3>
+                        </div>
+                        <div className="card-body" style={{ padding: '20px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
+                          <div>
+                            <span className="form-label" style={{ fontWeight: 'bold', display: 'inline' }}>Responsabile:</span>
+                            <span style={{ marginLeft: '8px' }}>{project.responsible || 'Non specificato'}</span>
+                          </div>
+                          <div>
+                            <span className="form-label" style={{ fontWeight: 'bold', display: 'inline' }}>Project Manager:</span>
+                            <span style={{ marginLeft: '8px' }}>{project.project_manager || 'Non specificato'}</span>
+                          </div>
+                          <div>
+                            <span className="form-label" style={{ fontWeight: 'bold', display: 'inline' }}>Data Inizio:</span>
+                            <span style={{ marginLeft: '8px' }}>{project.start_date ? formatDateIt(project.start_date) : 'Non specificata'}</span>
+                          </div>
+                          <div>
+                            <span className="form-label" style={{ fontWeight: 'bold', display: 'inline' }}>Data Fine:</span>
+                            <span style={{ marginLeft: '8px' }}>{project.end_date ? formatDateIt(project.end_date) : 'Non specificata'}</span>
+                          </div>
+                          <div>
+                            <span className="form-label" style={{ fontWeight: 'bold', display: 'inline' }}>Durata Commessa:</span>
+                            <span style={{ marginLeft: '8px' }}>{durationDays ? `${durationDays} giorni solari` : 'N/D'}</span>
+                          </div>
+                          <div>
+                            <span className="form-label" style={{ fontWeight: 'bold', display: 'inline' }}>Prezzo di Vendita:</span>
+                            <span style={{ marginLeft: '8px', fontWeight: 'bold', color: 'var(--color-primary)' }}>
+                              {salePrice.toLocaleString('it-IT', { style: 'currency', currency: 'EUR' })}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Resources Allocation Card */}
+                      <div className="glass-card">
+                        <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <h3 className="card-title">Risorse Allocate per la Simulazione</h3>
+                          <button
+                            className="btn btn-primary btn-sm"
+                            onClick={handleAddSimulatedResource}
+                          >
+                            + Aggiungi Risorsa
+                          </button>
+                        </div>
+                        <div className="card-body" style={{ padding: '20px' }}>
+                          <div className="custom-table-wrapper">
+                            <table className="custom-table">
+                              <thead>
+                                <tr>
+                                  <th>Risorsa Selezionata</th>
+                                  <th>Nome / Ruolo</th>
+                                  <th style={{ width: '130px' }}>Costo Giornaliero (€)</th>
+                                  <th style={{ width: '100px' }}>Giorni Allocati</th>
+                                  <th style={{ width: '120px' }}>Costo Totale (€)</th>
+                                  <th style={{ width: '80px', textAlign: 'center' }}>Azioni</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {simulatedResources.length === 0 ? (
+                                  <tr>
+                                    <td colSpan="6" style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '20px' }}>
+                                      Nessuna risorsa aggiunta a questa simulazione. Clicca "+ Aggiungi Risorsa" per iniziare.
+                                    </td>
+                                  </tr>
+                                ) : (
+                                  simulatedResources.map((res) => {
+                                    const isCustom = res.userId === 'custom';
+                                    const totalResCost = (parseFloat(res.cost) || 0) * (parseFloat(res.days) || 0);
+                                    return (
+                                      <tr key={res.id}>
+                                        <td>
+                                          <select
+                                            className="form-input"
+                                            value={res.userId}
+                                            onChange={(e) => handleResourceChange(res.id, 'userId', e.target.value)}
+                                            style={{ padding: '4px 8px', fontSize: '0.85rem' }}
+                                          >
+                                            <option value="">-- Seleziona --</option>
+                                            <option value="custom">Nuova figura professionale</option>
+                                            {users.map(u => (
+                                              <option key={u.id} value={u.id}>{u.name} ({u.role})</option>
+                                            ))}
+                                          </select>
+                                        </td>
+                                        <td>
+                                          <input
+                                            type="text"
+                                            className="form-input"
+                                            value={res.name}
+                                            disabled={res.userId && !isCustom}
+                                            onChange={(e) => handleResourceChange(res.id, 'name', e.target.value)}
+                                            placeholder="Nome o Ruolo..."
+                                            style={{ padding: '4px 8px', fontSize: '0.85rem' }}
+                                            required
+                                          />
+                                        </td>
+                                        <td>
+                                          <input
+                                            type="number"
+                                            className="form-input"
+                                            value={res.cost}
+                                            disabled={res.userId && !isCustom}
+                                            onChange={(e) => handleResourceChange(res.id, 'cost', parseFloat(e.target.value) || 0)}
+                                            placeholder="0.00"
+                                            min="0"
+                                            step="0.01"
+                                            style={{ padding: '4px 8px', fontSize: '0.85rem' }}
+                                          />
+                                        </td>
+                                        <td>
+                                          <input
+                                            type="number"
+                                            className="form-input"
+                                            value={res.days}
+                                            onChange={(e) => handleResourceChange(res.id, 'days', parseFloat(e.target.value) || 0)}
+                                            placeholder="0"
+                                            min="0"
+                                            style={{ padding: '4px 8px', fontSize: '0.85rem' }}
+                                          />
+                                        </td>
+                                        <td style={{ fontWeight: '600' }}>
+                                          {totalResCost.toLocaleString('it-IT', { style: 'currency', currency: 'EUR' })}
+                                        </td>
+                                        <td style={{ textAlign: 'center' }}>
+                                          <button
+                                            className="btn btn-danger btn-sm"
+                                            onClick={() => handleRemoveSimulatedResource(res.id)}
+                                            style={{ padding: '4px 8px' }}
+                                          >
+                                            Rimuovi
+                                          </button>
+                                        </td>
+                                      </tr>
+                                    );
+                                  })
+                                )}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Right Panel: Financial dashboard */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '30px' }}>
+                      {/* Scenario History Card */}
+                      <div className="glass-card">
+                        <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <h3 className="card-title">Storico Scenari e Simulazioni</h3>
+                          <button
+                            className="btn btn-secondary btn-sm"
+                            onClick={handleCreateNewSimulation}
+                          >
+                            + Nuova
+                          </button>
+                        </div>
+                        <div className="card-body" style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                          
+                          {/* Saved Simulations List */}
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', maxHeight: '250px', overflowY: 'auto' }}>
+                            {simulationsList.length === 0 ? (
+                              <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', textAlign: 'center', padding: '10px' }}>
+                                Nessuno scenario salvato per questa commessa.
+                              </p>
+                            ) : (
+                              simulationsList.map((sim) => {
+                                const simCosts = (sim.resources || []).reduce((sum, res) => sum + (parseFloat(res.cost) || 0) * (parseFloat(res.days) || 0), 0);
+                                const simMarginPercent = salePrice > 0 ? ((salePrice - simCosts) / salePrice) * 100 : 0;
+                                const isActive = activeSimulationId === sim.id;
+                                
+                                return (
+                                  <div 
+                                    key={sim.id}
+                                    className="simulation-history-item"
+                                    style={{
+                                      padding: '12px',
+                                      borderRadius: 'var(--radius-sm)',
+                                      border: isActive ? '1px solid var(--color-primary)' : '1px solid var(--border-color)',
+                                      backgroundColor: isActive ? 'rgba(124, 182, 129, 0.05)' : 'rgba(255,255,255,0.01)',
+                                      display: 'flex',
+                                      flexDirection: 'column',
+                                      gap: '8px',
+                                      cursor: 'pointer'
+                                    }}
+                                    onClick={() => handleLoadSimulation(sim.id)}
+                                  >
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                      <span style={{ fontWeight: '600', fontSize: '0.9rem', color: isActive ? 'var(--color-primary)' : 'var(--text-main)' }}>
+                                        {sim.name}
+                                      </span>
+                                      <div style={{ display: 'flex', gap: '5px' }}>
+                                        {!sim.isOptimal && (
+                                          <button
+                                            className="btn btn-secondary btn-sm"
+                                            onClick={(e) => { e.stopPropagation(); handleSetOptimalSimulation(sim.id); }}
+                                            style={{ padding: '2px 6px', fontSize: '0.75rem' }}
+                                            title="Imposta come Ottimale"
+                                          >
+                                            Imposta Ottimale
+                                          </button>
+                                        )}
+                                        <button
+                                          className="btn btn-danger btn-sm"
+                                          onClick={(e) => { e.stopPropagation(); handleDeleteSimulation(sim.id); }}
+                                          style={{ padding: '2px 6px', fontSize: '0.75rem' }}
+                                          title="Elimina"
+                                        >
+                                          Elimina
+                                        </button>
+                                      </div>
+                                    </div>
+                                    
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                                      <span>Costo: {simCosts.toLocaleString('it-IT', { style: 'currency', currency: 'EUR' })}</span>
+                                      <span>Margine: {simMarginPercent.toFixed(1)}%</span>
+                                    </div>
+
+                                    {sim.isOptimal && (
+                                      <div 
+                                        style={{ 
+                                          backgroundColor: 'rgba(16, 185, 129, 0.15)', 
+                                          color: 'var(--color-success)', 
+                                          border: '1px solid var(--color-success)', 
+                                          padding: '4px 8px', 
+                                          borderRadius: 'var(--radius-sm)', 
+                                          fontSize: '0.75rem', 
+                                          fontWeight: '700',
+                                          textAlign: 'center',
+                                          marginTop: '4px'
+                                        }}
+                                      >
+                                        👑 PIANIFICAZIONE OTTIMALE
+                                      </div>
+                                    )}
+                                  </div>
+                                );
+                              })
+                            )}
+                          </div>
+
+                          {/* Save current simulation block */}
+                          <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: '15px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                            <span className="form-label" style={{ fontWeight: '600', fontSize: '0.85rem' }}>
+                              {activeSimulationId ? "Salva scenario come nuovo o aggiorna l'attivo" : 'Salva scenario corrente'}
+                            </span>
+                            <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                              <input 
+                                type="text"
+                                className="form-input"
+                                placeholder="es. Scenario Ottimista"
+                                value={newSimulationName}
+                                onChange={(e) => setNewSimulationName(e.target.value)}
+                                style={{ flex: 1, padding: '6px 12px' }}
+                              />
+                              {activeSimulationId ? (
+                                <>
+                                  <button
+                                    className="btn btn-secondary"
+                                    onClick={handleUpdateActiveSimulation}
+                                    style={{ padding: '6px 16px', whiteSpace: 'nowrap' }}
+                                  >
+                                    Aggiorna
+                                  </button>
+                                  <button
+                                    className="btn btn-primary"
+                                    onClick={handleSaveSimulation}
+                                    style={{ padding: '6px 16px', whiteSpace: 'nowrap' }}
+                                  >
+                                    Salva come Nuovo
+                                  </button>
+                                </>
+                              ) : (
+                                <button
+                                  className="btn btn-primary"
+                                  onClick={handleSaveSimulation}
+                                  style={{ padding: '6px 16px', whiteSpace: 'nowrap' }}
+                                >
+                                  Salva
+                                </button>
+                              )}
+                            </div>
+                          </div>
+
+                        </div>
+                      </div>
+
+                      <div className="glass-card" style={{ height: 'fit-content' }}>
+                        <div className="card-header">
+                          <h3 className="card-title">Analisi Finanziaria Simulazione</h3>
+                        </div>
+                        <div className="card-body" style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                          
+                          {/* Financial Rows */}
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid var(--border-color)', paddingBottom: '8px' }}>
+                              <span style={{ color: 'var(--text-secondary)' }}>Prezzo di Vendita Commessa</span>
+                              <span style={{ fontWeight: '700' }}>
+                                {salePrice.toLocaleString('it-IT', { style: 'currency', currency: 'EUR' })}
+                              </span>
+                            </div>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid var(--border-color)', paddingBottom: '8px' }}>
+                              <span style={{ color: 'var(--text-secondary)' }}>Costi Interni Totali Simulati</span>
+                              <span style={{ fontWeight: '700', color: 'var(--color-danger)' }}>
+                                {totalCosts.toLocaleString('it-IT', { style: 'currency', currency: 'EUR' })}
+                              </span>
+                            </div>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid var(--border-color)', paddingBottom: '8px' }}>
+                              <span style={{ color: 'var(--text-secondary)', fontWeight: '600' }}>Margine Simulato (€)</span>
+                              <span style={{ fontWeight: '700', color: simulatedMarginEur >= 0 ? 'var(--color-success)' : 'var(--color-danger)' }}>
+                                {simulatedMarginEur.toLocaleString('it-IT', { style: 'currency', currency: 'EUR' })}
+                              </span>
+                            </div>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid var(--border-color)', paddingBottom: '8px' }}>
+                              <span style={{ color: 'var(--text-secondary)', fontWeight: '600' }}>Margine Simulato (%)</span>
+                              <span style={{ fontWeight: '700', color: simulatedMarginPercent >= targetMarginPercent ? 'var(--color-success)' : 'var(--color-warning)' }}>
+                                {simulatedMarginPercent.toFixed(1)}%
+                              </span>
+                            </div>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid var(--border-color)', paddingBottom: '8px' }}>
+                              <span style={{ color: 'var(--text-secondary)' }}>Margine Target Originario</span>
+                              <span style={{ fontWeight: '600' }}>{targetMarginPercent.toFixed(1)}% ({targetMarginEur.toLocaleString('it-IT', { style: 'currency', currency: 'EUR' })})</span>
+                            </div>
+                          </div>
+
+                          {/* Comparison / Delta Display */}
+                          <div 
+                            style={{ 
+                              padding: '15px', 
+                              borderRadius: 'var(--radius-md)', 
+                              backgroundColor: marginDelta >= 0 ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)',
+                              border: `1px solid ${marginDelta >= 0 ? 'var(--color-success)' : 'var(--color-danger)'}`,
+                              display: 'flex',
+                              flexDirection: 'column',
+                              gap: '6px'
+                            }}
+                          >
+                            <span style={{ fontSize: '0.85rem', fontWeight: '600', color: marginDelta >= 0 ? 'var(--color-success)' : 'var(--color-danger)' }}>
+                              {marginDelta >= 0 ? '✓ Obiettivo Margine Raggiunto!' : '⚠ Attenzione: Margine Sotto il Target!'}
+                            </span>
+                            <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                              Scostamento rispetto al margine target del progetto: 
+                              <strong style={{ marginLeft: '4px', color: marginDelta >= 0 ? 'var(--color-success)' : 'var(--color-danger)' }}>
+                                {marginDelta >= 0 ? '+' : ''}{marginDelta.toFixed(1)}%
+                              </strong>
+                            </span>
+                          </div>
+
+                          {/* Visual Progress Bar comparing simulated margin to target margin */}
+                          <div>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '4px' }}>
+                              <span>Avanzamento Margine</span>
+                              <span>{simulatedMarginPercent.toFixed(1)}% / {targetMarginPercent.toFixed(1)}% target</span>
+                            </div>
+                            <div style={{ width: '100%', height: '8px', backgroundColor: 'rgba(255,255,255,0.1)', borderRadius: '4px', overflow: 'hidden' }}>
+                              <div 
+                                style={{ 
+                                  width: `${Math.min(100, Math.max(0, (simulatedMarginPercent / (targetMarginPercent || 1)) * 100))}%`, 
+                                  height: '100%', 
+                                  backgroundColor: marginDelta >= 0 ? 'var(--color-success)' : 'var(--color-warning)',
+                                  transition: 'width 0.3s ease'
+                                }}
+                              />
+                            </div>
+                          </div>
+
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })() : (
+                <div style={{ padding: '60px', textAlign: 'center', color: 'var(--text-muted)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '15px' }} className="glass-card">
+                  <Sliders size={48} style={{ color: 'rgba(255,255,255,0.1)' }} />
+                  <span>Seleziona una commessa dal menu a tendina sopra per iniziare la simulazione della pianificazione e il calcolo del margine.</span>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* TAB: ANAGRAFICA COLLABORATORI (ADMIN & HR) */}
+          {activeTab === 'users' && currentUser && (currentUser.role === 'Admin' || currentUser.role === 'HR') && (
+            <div className="users-tab-container" style={{ display: 'flex', flexDirection: 'column', gap: '30px' }}>
+              
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '30px' }}>
+                
+                {/* Card 1: Creazione/Modifica Collaboratore */}
+                <div className="glass-card">
+                  <div className="card-header">
+                    <h3 className="card-title" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <Users size={18} style={{ color: 'var(--color-primary)' }} />
+                      {editingUserId ? 'Modifica Collaboratore' : 'Nuovo Collaboratore'}
+                    </h3>
+                  </div>
+                  <div className="card-body" style={{ padding: '20px' }}>
+                    <form onSubmit={editingUserId ? handleUpdateUser : handleCreateUser}>
+                      <div className="form-group" style={{ marginBottom: '15px' }}>
+                        <label className="form-label">Nome e Cognome</label>
+                        <input 
+                          type="text" 
+                          className="form-input"
+                          placeholder="es. Mario Rossi"
+                          value={editingUserId ? editingUserName : newUserName}
+                          onChange={(e) => editingUserId ? setEditingUserName(e.target.value) : setNewUserName(e.target.value)}
+                          required
+                        />
+                      </div>
+                      <div className="form-group" style={{ marginBottom: '15px' }}>
+                        <label className="form-label">Email</label>
+                        <input 
+                          type="email" 
+                          className="form-input"
+                          placeholder="es. mario.rossi@azienda.it"
+                          value={editingUserId ? editingUserEmail : newUserEmail}
+                          onChange={(e) => editingUserId ? setEditingUserEmail(e.target.value) : setNewUserEmail(e.target.value)}
+                          required
+                        />
+                      </div>
+                      <div className="form-group" style={{ marginBottom: '15px' }}>
+                        <label className="form-label">{editingUserId ? 'Password (lascia vuoto per non modificare)' : 'Password'}</label>
+                        <input 
+                          type="password" 
+                          className="form-input"
+                          placeholder="Password"
+                          value={editingUserId ? editingUserPassword : newUserPassword}
+                          onChange={(e) => editingUserId ? setEditingUserPassword(e.target.value) : setNewUserPassword(e.target.value)}
+                          required={!editingUserId}
+                        />
+                      </div>
+                      <div className="form-group" style={{ marginBottom: '15px' }}>
+                        <label className="form-label">Ruolo</label>
+                        <select 
+                          className="form-input"
+                          value={editingUserId ? editingUserRole : newUserRole}
+                          onChange={(e) => editingUserId ? setEditingUserRole(e.target.value) : setNewUserRole(e.target.value)}
+                          required
+                        >
+                          <option value="Dipendente">Dipendente</option>
+                          <option value="Team Leader">Team Leader</option>
+                          <option value="Admin">Admin</option>
+                          <option value="HR">HR</option>
+                        </select>
+                      </div>
+                      <div className="form-group" style={{ marginBottom: '15px' }}>
+                        <label className="form-label">Telefono</label>
+                        <input 
+                          type="text" 
+                          className="form-input"
+                          placeholder="es. +39 333 1234567"
+                          value={editingUserId ? editingUserPhone : newUserPhone}
+                          onChange={(e) => editingUserId ? setEditingUserPhone(e.target.value) : setNewUserPhone(e.target.value)}
+                        />
+                      </div>
+                      <div className="form-group" style={{ marginBottom: '15px' }}>
+                        <label className="form-label">Indirizzo</label>
+                        <input 
+                          type="text" 
+                          className="form-input"
+                          placeholder="es. Via Roma 10, Milano"
+                          value={editingUserId ? editingUserAddress : newUserAddress}
+                          onChange={(e) => editingUserId ? setEditingUserAddress(e.target.value) : setNewUserAddress(e.target.value)}
+                        />
+                      </div>
+                      <div className="form-group" style={{ marginBottom: '15px' }}>
+                        <label className="form-label">Costo Interno (€/giorno)</label>
+                        <input 
+                          type="number" 
+                          className="form-input"
+                          placeholder="es. 45.00"
+                          step="0.01"
+                          min="0"
+                          value={editingUserId ? editingUserInternalCost : newUserInternalCost}
+                          onChange={(e) => editingUserId ? setEditingUserInternalCost(e.target.value) : setNewUserInternalCost(e.target.value)}
+                        />
+                      </div>
+                      <div className="form-group" style={{ marginBottom: '15px' }}>
+                        <label className="form-label">LIVELLO AZIENDALE</label>
+                        <input 
+                          type="text" 
+                          className="form-input"
+                          placeholder="es. A1"
+                          maxLength={4}
+                          value={editingUserId ? editingUserCorporateLevel : newUserCorporateLevel}
+                          onChange={(e) => editingUserId ? setEditingUserCorporateLevel(e.target.value) : setNewUserCorporateLevel(e.target.value)}
+                        />
+                      </div>
+                      <div className="form-group" style={{ marginBottom: '20px' }}>
+                        <label className="form-label">Ferie Iniziali (Giorni)</label>
+                        <input 
+                          type="number" 
+                          className="form-input"
+                          placeholder="es. 30"
+                          min="0"
+                          value={editingUserId ? editingUserHolidayTotal : newUserHolidayTotal}
+                          onChange={(e) => editingUserId ? setEditingUserHolidayTotal(e.target.value) : setNewUserHolidayTotal(e.target.value)}
+                        />
+                      </div>
+                      <div style={{ display: 'flex', gap: '10px' }}>
+                        <button type="submit" className="btn btn-primary" style={{ flex: 1, height: '38px' }}>
+                          {editingUserId ? 'Salva Modifiche' : 'Crea Collaboratore'}
+                        </button>
+                        {editingUserId && (
+                          <button 
+                            type="button" 
+                            className="btn btn-secondary" 
+                            style={{ height: '38px' }}
+                            onClick={() => {
+                              setEditingUserId(null);
+                              setEditingUserName('');
+                              setEditingUserEmail('');
+                              setEditingUserPassword('');
+                              setEditingUserRole('Dipendente');
+                              setEditingUserPhone('');
+                              setEditingUserAddress('');
+                              setEditingUserIban('');
+                              setEditingUserInternalCost('');
+                              setEditingUserCorporateLevel('');
+                              setEditingUserHolidayTotal(30);
+                            }}
+                          >
+                            Annulla
+                          </button>
+                        )}
+                      </div>
+                    </form>
+                  </div>
+                </div>
+
+                {/* Card 2: Elenco Collaboratori */}
+                <div className="glass-card" style={{ gridColumn: 'span 2' }}>
+                  <div className="card-header">
+                    <h3 className="card-title" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <Users size={18} style={{ color: 'var(--color-primary)' }} />
+                      Collaboratori Registrati
+                    </h3>
+                  </div>
+                  <div className="custom-table-container">
+                    <table className="custom-table">
+                      <thead>
+                        <tr>
+                          <th>Nome</th>
+                          <th>Email</th>
+                          <th>Ruolo</th>
+                          <th>Livello</th>
+                          <th>Costo Interno</th>
+                          <th>Ferie (Tot/Res)</th>
+                          <th style={{ width: '180px', textAlign: 'center' }}>Azioni</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {users.length === 0 ? (
+                          <tr>
+                            <td colSpan="7" style={{ textAlign: 'center', color: 'var(--text-muted)' }}>
+                              Nessun collaboratore configurato.
+                            </td>
+                          </tr>
+                        ) : (
+                          users.map(u => {
+                            const balance = u.holidayBalance;
+                            return (
+                              <tr key={u.id}>
+                                <td style={{ fontWeight: '600' }}>{u.name}</td>
+                                <td>{u.email}</td>
+                                <td>
+                                  <span className={`role-badge-pill ${u.role.toLowerCase() === 'team leader' ? 'team-leader' : u.role.toLowerCase() === 'dipendente' ? 'dipendente' : u.role.toLowerCase() === 'admin' ? 'admin' : 'hr'}`}>
+                                    {u.role}
+                                  </span>
+                                </td>
+                                <td style={{ fontWeight: 'bold' }}>{u.corporate_level || '—'}</td>
+                                <td>{u.internal_cost !== undefined && u.internal_cost !== null ? `€ ${parseFloat(u.internal_cost).toFixed(2)}/giorno` : '€ 0.00/giorno'}</td>
+                                <td>
+                                  {balance ? `${balance.totalDays} / ${balance.remainingDays} gg` : '—'}
+                                </td>
+                                <td style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
+                                  <button 
+                                    className="btn btn-secondary btn-sm"
+                                    onClick={() => {
+                                      setEditingUserId(u.id);
+                                      setEditingUserName(u.name);
+                                      setEditingUserEmail(u.email);
+                                      setEditingUserPassword('');
+                                      setEditingUserRole(u.role);
+                                      setEditingUserPhone(u.phone || '');
+                                      setEditingUserAddress(u.address || '');
+                                      setEditingUserIban(u.iban || '');
+                                      setEditingUserInternalCost(u.internal_cost !== undefined && u.internal_cost !== null ? String(u.internal_cost) : '');
+                                      setEditingUserCorporateLevel(u.corporate_level || '');
+                                      setEditingUserHolidayTotal(balance ? balance.totalDays : 30);
+                                    }}
+                                  >
+                                    Modifica
+                                  </button>
+                                  <button 
+                                    className="btn btn-danger btn-sm"
+                                    disabled={u.id === currentUser.id}
+                                    onClick={() => handleDeleteUser(u.id)}
+                                  >
+                                    Elimina
+                                  </button>
+                                </td>
+                              </tr>
+                            );
+                          })
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+              </div>
+              
             </div>
           )}
 
@@ -3427,13 +4614,12 @@ export default function App() {
                     <table className="custom-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
                       <thead>
                         <tr>
-                          <th style={{ width: '12%', textAlign: 'left', padding: '10px' }}>Giorno</th>
-                          <th style={{ width: '22%', textAlign: 'left', padding: '10px' }}>Commessa / Progetto</th>
+                          <th style={{ width: '14%', textAlign: 'left', padding: '10px' }}>Giorno</th>
+                          <th style={{ width: '24%', textAlign: 'left', padding: '10px' }}>Commessa / Progetto</th>
                           <th style={{ width: '10%', textAlign: 'center', padding: '10px' }}>Ore Lav.</th>
                           <th style={{ width: '16%', textAlign: 'left', padding: '10px' }}>Permesso</th>
                           <th style={{ width: '16%', textAlign: 'left', padding: '10px' }}>Altra Assenza</th>
-                          <th style={{ width: '18%', textAlign: 'left', padding: '10px' }}>Note</th>
-                          <th style={{ width: '6%', textAlign: 'center', padding: '10px' }}>Azioni</th>
+                          <th style={{ width: '20%', textAlign: 'left', padding: '10px' }}>Note</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -3617,34 +4803,6 @@ export default function App() {
                                   placeholder="Note..."
                                   style={{ width: '100%', height: '34px', padding: '0 8px' }}
                                 />
-                              </td>
-
-                              {/* Azioni */}
-                              <td style={{ padding: '10px', textAlign: 'center' }}>
-                                <div style={{ display: 'flex', gap: '6px', justifyContent: 'center' }}>
-                                  <button
-                                    type="button"
-                                    className="btn btn-secondary btn-sm"
-                                    onClick={() => handleAddTimesheetRow(day.date)}
-                                    disabled={isReadOnly}
-                                    title="Aggiungi riga"
-                                    style={{ padding: '4px 8px', height: '30px' }}
-                                  >
-                                    <Plus size={14} />
-                                  </button>
-                                  {countForDate > 1 && (
-                                    <button
-                                      type="button"
-                                      className="btn btn-danger btn-sm"
-                                      onClick={() => handleRemoveTimesheetRow(day.clientKey, day.date)}
-                                      disabled={isReadOnly}
-                                      title="Rimuovi riga"
-                                      style={{ padding: '4px 8px', height: '30px' }}
-                                    >
-                                      <Trash2 size={14} />
-                                    </button>
-                                  )}
-                                </div>
                               </td>
                             </tr>
                           );
@@ -3929,7 +5087,7 @@ export default function App() {
                         onClick={() => {
                           if (currentUser.role === 'Dipendente' || currentUser.role === 'Team Leader') setActiveTab('dashboard');
                           else if (currentUser.role === 'Admin') setActiveTab('approvals');
-                          else setActiveTab('coverage');
+                          else setActiveTab('reports');
                         }}
                       >
                         Annulla
