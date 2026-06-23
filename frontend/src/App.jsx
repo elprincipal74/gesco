@@ -27,7 +27,8 @@ import {
   Settings as SettingsIcon,
   Copy,
   Sliders,
-  Briefcase
+  Briefcase,
+  BarChart2
 } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import 'jspdf-autotable';
@@ -231,6 +232,10 @@ export default function App() {
   const [simulationsList, setSimulationsList] = useState([]);
   const [activeSimulationId, setActiveSimulationId] = useState(null);
   const [newSimulationName, setNewSimulationName] = useState('');
+  
+  // Preventivo vs Consuntivo State
+  const [actualsList, setActualsList] = useState([]);
+  const [comparisonProjectId, setComparisonProjectId] = useState('');
   
   const [currentUser, setCurrentUser] = useState(() => {
     try {
@@ -919,13 +924,17 @@ export default function App() {
     }
   }, [activeTab, currentUser]);
 
-  // Projects (Commesse) and Report switching effects
   useEffect(() => {
     if (!currentUser) return;
     
     if ((activeTab === 'projects' && (currentUser.role === 'Admin' || currentUser.role === 'HR')) ||
-        (activeTab === 'simulation' && (currentUser.role === 'Admin' || currentUser.role === 'HR' || currentUser.role === 'Team Leader'))) {
+        (activeTab === 'simulation' && (currentUser.role === 'Admin' || currentUser.role === 'HR' || currentUser.role === 'Team Leader')) ||
+        (activeTab === 'comparison' && (currentUser.role === 'Admin' || currentUser.role === 'HR' || currentUser.role === 'Team Leader'))) {
       fetchAllProjects();
+    }
+    
+    if (activeTab === 'comparison' && (currentUser.role === 'Admin' || currentUser.role === 'HR' || currentUser.role === 'Team Leader')) {
+      fetchProjectActuals();
     }
     
     if (activeTab === 'timesheet') {
@@ -936,6 +945,18 @@ export default function App() {
       fetchProjectReport();
     }
   }, [activeTab, currentUser]);
+
+  const fetchProjectActuals = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/reports/actuals`);
+      if (res.ok) {
+        const data = await res.json();
+        setActualsList(data);
+      }
+    } catch (err) {
+      console.error("Error fetching project actuals:", err);
+    }
+  };
 
   // handleRoleChange removed, using direct login workflow instead
 
@@ -2128,6 +2149,13 @@ export default function App() {
                 <Sliders className="nav-item-icon" />
                 <span>Simulazione Commesse</span>
               </div>
+              <div 
+                className={`nav-item ${activeTab === 'comparison' ? 'active' : ''}`}
+                onClick={() => { setActiveTab('comparison'); resetSelection(); }}
+              >
+                <BarChart2 className="nav-item-icon" />
+                <span>Preventivo vs Consuntivo</span>
+              </div>
             </>
           )}
           
@@ -2225,6 +2253,7 @@ export default function App() {
             {activeTab === 'users' && 'Anagrafica Collaboratori'}
             {activeTab === 'absences' && 'Gestione Tipologie Assenze'}
             {activeTab === 'simulation' && 'Simulatore Margine Commessa'}
+            {activeTab === 'comparison' && 'Preventivo vs Consuntivo Commesse'}
             {activeTab === 'profile' && 'I Miei Dati Personali'}
             {activeTab === 'communications' && 'Comunicazioni e Avvisi'}
           </h1>
@@ -2394,6 +2423,13 @@ export default function App() {
                         >
                           <Sliders size={14} />
                           <span>Simulazione Commesse</span>
+                        </button>
+                        <button 
+                          className={`profile-dropdown-item ${activeTab === 'comparison' ? 'active' : ''}`}
+                          onClick={() => { setActiveTab('comparison'); setShowProfileDropdown(false); }}
+                        >
+                          <BarChart2 size={14} />
+                          <span>Preventivo vs Consuntivo</span>
                         </button>
                       </>
                     )}
@@ -4196,6 +4232,359 @@ export default function App() {
                   <span>Seleziona una commessa dal menu a tendina sopra per iniziare la simulazione della pianificazione e il calcolo del margine.</span>
                 </div>
               )}
+            </div>
+          )}
+
+          {/* TAB: PREVENTIVO VS CONSUNTIVO (COMPARISON DASHBOARD) */}
+          {activeTab === 'comparison' && currentUser && (currentUser.role === 'Admin' || currentUser.role === 'HR' || currentUser.role === 'Team Leader') && (
+            <div className="comparison-tab-container" style={{ display: 'flex', flexDirection: 'column', gap: '30px' }}>
+              
+              {/* Dropdown for project selection */}
+              <div className="glass-card" style={{ padding: '20px' }}>
+                <div className="form-group" style={{ margin: 0, maxWidth: '400px' }}>
+                  <label className="form-label">Seleziona Commessa</label>
+                  <select 
+                    className="form-input" 
+                    value={comparisonProjectId} 
+                    onChange={(e) => setComparisonProjectId(e.target.value)}
+                  >
+                    <option value="">-- Seleziona una commessa --</option>
+                    {projects.map(p => (
+                      <option key={p.id} value={p.id}>{p.code ? `[${p.code}] ` : ''}{p.name}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {(() => {
+                if (!comparisonProjectId) {
+                  return (
+                    <div style={{ padding: '60px', textAlign: 'center', color: 'var(--text-muted)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '15px' }} className="glass-card">
+                      <BarChart2 size={48} style={{ color: 'rgba(255,255,255,0.1)' }} />
+                      <span>Seleziona una commessa dal menu a tendina sopra per visualizzare il confronto preventivo vs consuntivo.</span>
+                    </div>
+                  );
+                }
+
+                const project = projects.find(p => p.id === comparisonProjectId);
+                if (!project) return null;
+
+                // Load simulations list for this project from localStorage
+                let localSimulations = [];
+                try {
+                  const saved = localStorage.getItem(`sim_history_${project.id}`);
+                  if (saved) localSimulations = JSON.parse(saved);
+                } catch (e) {
+                  console.error(e);
+                }
+
+                // Find optimal simulation
+                const optimalSim = localSimulations.find(s => s.isOptimal);
+
+                // Get actuals for this project from actualsList
+                const projectActuals = actualsList.filter(act => act.projectName === project.name);
+
+                // Calculate Preventivato (Optimal Plan) totals
+                let plannedTotalCost = 0;
+                let plannedResourcesCount = 0;
+                let plannedDays = 0;
+                if (optimalSim && Array.isArray(optimalSim.resources)) {
+                  optimalSim.resources.forEach(res => {
+                    plannedTotalCost += (parseFloat(res.cost) || 0) * (parseFloat(res.days) || 0);
+                    plannedDays += parseFloat(res.days) || 0;
+                    plannedResourcesCount++;
+                  });
+                }
+                const plannedHours = plannedDays * 8;
+                const salePrice = parseFloat(project.sale_price) || 0;
+                const plannedMarginEur = salePrice - plannedTotalCost;
+                const plannedMarginPercent = salePrice > 0 ? (plannedMarginEur / salePrice) * 100 : 0;
+
+                // Calculate Consuntivato (Submitted actuals) totals
+                let actualTotalCost = 0;
+                let actualHours = 0;
+                let actualResourcesCount = 0;
+                const actualResourcesMap = {};
+                projectActuals.forEach(act => {
+                  actualTotalCost += parseFloat(act.cost) || 0;
+                  actualHours += parseFloat(act.hours) || 0;
+                  if (!actualResourcesMap[act.userId]) {
+                    actualResourcesMap[act.userId] = true;
+                    actualResourcesCount++;
+                  }
+                });
+                const actualDays = actualHours / 8;
+                const actualMarginEur = salePrice - actualTotalCost;
+                const actualMarginPercent = salePrice > 0 ? (actualMarginEur / salePrice) * 100 : 0;
+
+                // Variance / Scostamento
+                const costVarianceEur = actualTotalCost - plannedTotalCost;
+                const hoursVariance = actualHours - plannedHours;
+                const marginPercentVariance = actualMarginPercent - plannedMarginPercent;
+
+                return (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '30px' }}>
+                    
+                    {/* Project Header Info */}
+                    <div className="glass-card" style={{ padding: '24px' }}>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '20px' }}>
+                        <div>
+                          <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Commessa</div>
+                          <div style={{ fontSize: '1.2rem', fontWeight: '700' }}>{project.name}</div>
+                          {project.code && <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Codice: {project.code}</div>}
+                        </div>
+                        <div>
+                          <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Project Manager</div>
+                          <div style={{ fontSize: '1rem', fontWeight: '600' }}>{project.project_manager || 'Non specificato'}</div>
+                        </div>
+                        <div>
+                          <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Responsabile</div>
+                          <div style={{ fontSize: '1rem', fontWeight: '600' }}>{project.responsible || 'Non specificato'}</div>
+                        </div>
+                        <div>
+                          <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Prezzo Vendita / Margine Target</div>
+                          <div style={{ fontSize: '1.1rem', fontWeight: '700', color: 'var(--color-primary)' }}>
+                            {salePrice.toLocaleString('it-IT', { style: 'currency', currency: 'EUR' })}
+                          </div>
+                          <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                            Target: {parseFloat(project.margin || 0).toFixed(1)}%
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {!optimalSim ? (
+                      <div className="glass-card" style={{ padding: '30px', borderLeft: '4px solid var(--color-warning)', display: 'flex', flexDirection: 'column', gap: '15px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', color: 'var(--color-warning)', fontWeight: '700', fontSize: '1.1rem' }}>
+                          <AlertTriangle size={24} />
+                          Nessuna Pianificazione Ottimale Selezionata
+                        </div>
+                        <span style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
+                          Per poter confrontare la pianificazione preventiva con i rapportini effettivi, devi prima selezionare uno scenario come <strong>PIANIFICAZIONE OTTIMALE</strong> all'interno della scheda di simulazione della commessa.
+                        </span>
+                        <div>
+                          <button 
+                            className="btn btn-primary"
+                            onClick={() => { setActiveTab('simulation'); setSimulatedProjectId(project.id); }}
+                            style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}
+                          >
+                            <Sliders size={16} />
+                            Vai alla Simulazione
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <>
+                        {/* Comparison Cards Row */}
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '20px' }}>
+                          
+                          {/* Planned Card */}
+                          <div className="glass-card" style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '15px', borderLeft: '4px solid #99c2a2' }}>
+                            <h4 style={{ margin: 0, fontSize: '0.9rem', color: 'var(--text-secondary)', textTransform: 'uppercase', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                              <span>Preventivo (Plan)</span>
+                              <span style={{ fontSize: '0.75rem', backgroundColor: 'rgba(255,255,255,0.05)', padding: '2px 8px', borderRadius: '10px', color: 'var(--text-secondary)' }}>
+                                {optimalSim.name}
+                              </span>
+                            </h4>
+                            <div>
+                              <div style={{ fontSize: '1.8rem', fontWeight: '700' }}>
+                                {plannedTotalCost.toLocaleString('it-IT', { style: 'currency', currency: 'EUR' })}
+                              </div>
+                              <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                                Costo pianificato per {plannedResourcesCount} risorse
+                              </div>
+                            </div>
+                            <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: '10px', display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}>
+                              <span>Ore: <strong>{plannedHours}h</strong> ({plannedDays.toFixed(1)} gg)</span>
+                              <span>Margine: <strong style={{ color: plannedMarginPercent >= (parseFloat(project.margin) || 0) ? 'var(--color-success)' : 'var(--color-warning)' }}>{plannedMarginPercent.toFixed(1)}%</strong></span>
+                            </div>
+                          </div>
+
+                          {/* Actual Card */}
+                          <div className="glass-card" style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '15px', borderLeft: '4px solid var(--color-primary)' }}>
+                            <h4 style={{ margin: 0, fontSize: '0.9rem', color: 'var(--text-secondary)', textTransform: 'uppercase', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                              <span>Consuntivo (Actual)</span>
+                              <span style={{ fontSize: '0.75rem', backgroundColor: 'rgba(124, 182, 129, 0.15)', padding: '2px 8px', borderRadius: '10px', color: 'var(--color-primary)' }}>
+                                Rapportini Inviati
+                              </span>
+                            </h4>
+                            <div>
+                              <div style={{ fontSize: '1.8rem', fontWeight: '700', color: 'var(--color-primary)' }}>
+                                {actualTotalCost.toLocaleString('it-IT', { style: 'currency', currency: 'EUR' })}
+                              </div>
+                              <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                                Costo effettivo registrato da {actualResourcesCount} risorse
+                              </div>
+                            </div>
+                            <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: '10px', display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}>
+                              <span>Ore: <strong>{actualHours}h</strong> ({actualDays.toFixed(1)} gg)</span>
+                              <span>Margine: <strong style={{ color: actualMarginPercent >= (parseFloat(project.margin) || 0) ? 'var(--color-success)' : 'var(--color-danger)' }}>{actualMarginPercent.toFixed(1)}%</strong></span>
+                            </div>
+                          </div>
+
+                          {/* Variance Card */}
+                          <div 
+                            className="glass-card" 
+                            style={{ 
+                              padding: '20px', 
+                              display: 'flex', 
+                              flexDirection: 'column', 
+                              gap: '15px', 
+                              borderLeft: `4px solid ${costVarianceEur > 0 ? 'var(--color-danger)' : costVarianceEur < 0 ? 'var(--color-success)' : 'var(--border-color)'}` 
+                            }}
+                          >
+                            <h4 style={{ margin: 0, fontSize: '0.9rem', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>
+                              Scostamento (Variance)
+                            </h4>
+                            <div>
+                              <div style={{ fontSize: '1.8rem', fontWeight: '700', color: costVarianceEur > 0 ? 'var(--color-danger)' : costVarianceEur < 0 ? 'var(--color-success)' : 'inherit' }}>
+                                {costVarianceEur > 0 ? '+' : ''}{costVarianceEur.toLocaleString('it-IT', { style: 'currency', currency: 'EUR' })}
+                              </div>
+                              <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                                Varianza di costo rispetto al preventivo
+                              </div>
+                            </div>
+                            <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: '10px', display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}>
+                              <span style={{ color: hoursVariance > 0 ? 'var(--color-danger)' : hoursVariance < 0 ? 'var(--color-success)' : 'inherit' }}>
+                                Ore: {hoursVariance > 0 ? '+' : ''}{hoursVariance}h
+                              </span>
+                              <span style={{ color: marginPercentVariance >= 0 ? 'var(--color-success)' : 'var(--color-danger)' }}>
+                                Margine: {marginPercentVariance >= 0 ? '+' : ''}{marginPercentVariance.toFixed(1)}%
+                              </span>
+                            </div>
+                          </div>
+
+                        </div>
+
+                        {/* Resource Breakdown Table Card */}
+                        <div className="glass-card">
+                          <div className="card-header">
+                            <h3 className="card-title">Dettaglio di Confronto per Risorsa</h3>
+                          </div>
+                          <div className="custom-table-container">
+                            <table className="custom-table">
+                              <thead>
+                                <tr>
+                                  <th>Collaboratore / Ruolo</th>
+                                  <th>Costo Unitario</th>
+                                  <th style={{ textAlign: 'center' }}>Ore Pianificate</th>
+                                  <th style={{ textAlign: 'center' }}>Ore Consuntivate</th>
+                                  <th style={{ textAlign: 'center' }}>Scostamento Ore</th>
+                                  <th style={{ textAlign: 'right' }}>Costo Preventivo</th>
+                                  <th style={{ textAlign: 'right' }}>Costo Consuntivo</th>
+                                  <th style={{ textAlign: 'right' }}>Varianza Costo</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {(() => {
+                                  // Compile resources from both planned and actual
+                                  const tableResources = [];
+                                  const treatedPlannedIds = new Set();
+                                  const treatedActualUserIds = new Set();
+
+                                  // Add planned resources
+                                  optimalSim.resources.forEach(pRes => {
+                                    const actualRes = projectActuals.find(aRes => aRes.userId === pRes.userId);
+                                    
+                                    const plannedResDays = parseFloat(pRes.days) || 0;
+                                    const plannedResHours = plannedResDays * 8;
+                                    const plannedResCostVal = (parseFloat(pRes.cost) || 0) * plannedResDays;
+                                    
+                                    const actualResHours = actualRes ? parseFloat(actualRes.hours) || 0 : 0;
+                                    const actualResCostVal = actualRes ? parseFloat(actualRes.cost) || 0 : 0;
+
+                                    tableResources.push({
+                                      name: pRes.name || `Risorsa Senza Nome`,
+                                      costUnit: pRes.cost,
+                                      plannedHours: plannedResHours,
+                                      actualHours: actualResHours,
+                                      plannedCost: plannedResCostVal,
+                                      actualCost: actualResCostVal,
+                                      isPlanned: true,
+                                      isActual: !!actualRes
+                                    });
+
+                                    if (pRes.userId) {
+                                      treatedPlannedIds.add(pRes.userId);
+                                      if (actualRes) {
+                                        treatedActualUserIds.add(actualRes.userId);
+                                      }
+                                    }
+                                  });
+
+                                  // Add remaining actual resources that were not planned
+                                  projectActuals.forEach(actualRes => {
+                                    if (treatedActualUserIds.has(actualRes.userId)) return;
+
+                                    // Find user's internal cost
+                                    const matchedUser = users.find(u => u.id === actualRes.userId);
+                                    const userCost = matchedUser && matchedUser.internal_cost !== undefined ? matchedUser.internal_cost : 0;
+
+                                    tableResources.push({
+                                      name: actualRes.userName,
+                                      costUnit: userCost,
+                                      plannedHours: 0,
+                                      actualHours: parseFloat(actualRes.hours) || 0,
+                                      plannedCost: 0,
+                                      actualCost: parseFloat(actualRes.cost) || 0,
+                                      isPlanned: false,
+                                      isActual: true
+                                    });
+                                  });
+
+                                  if (tableResources.length === 0) {
+                                    return (
+                                      <tr>
+                                        <td colSpan="8" style={{ textAlign: 'center', color: 'var(--text-muted)' }}>
+                                          Nessun dettaglio risorsa disponibile.
+                                        </td>
+                                      </tr>
+                                    );
+                                  }
+
+                                  return tableResources.map((res, index) => {
+                                    const diffHours = res.actualHours - res.plannedHours;
+                                    const diffCost = res.actualCost - res.plannedCost;
+
+                                    return (
+                                      <tr key={index}>
+                                        <td style={{ fontWeight: '600' }}>
+                                          {res.name}
+                                          {!res.isPlanned && (
+                                            <span style={{ marginLeft: '8px', fontSize: '0.65rem', backgroundColor: 'rgba(239, 68, 68, 0.15)', color: 'var(--color-danger)', padding: '2px 6px', borderRadius: '4px' }}>
+                                              Non Pianificato
+                                            </span>
+                                          )}
+                                        </td>
+                                        <td>€ {parseFloat(res.costUnit || 0).toFixed(2)}/giorno</td>
+                                        <td style={{ textAlign: 'center' }}>{res.plannedHours}h</td>
+                                        <td style={{ textAlign: 'center' }}>{res.actualHours}h</td>
+                                        <td style={{ textAlign: 'center', color: diffHours > 0 ? 'var(--color-danger)' : diffHours < 0 ? 'var(--color-success)' : 'inherit', fontWeight: 'bold' }}>
+                                          {diffHours > 0 ? '+' : ''}{diffHours}h
+                                        </td>
+                                        <td style={{ textAlign: 'right' }}>
+                                          {res.plannedCost.toLocaleString('it-IT', { style: 'currency', currency: 'EUR' })}
+                                        </td>
+                                        <td style={{ textAlign: 'right' }}>
+                                          {res.actualCost.toLocaleString('it-IT', { style: 'currency', currency: 'EUR' })}
+                                        </td>
+                                        <td style={{ textAlign: 'right', color: diffCost > 0 ? 'var(--color-danger)' : diffCost < 0 ? 'var(--color-success)' : 'inherit', fontWeight: 'bold' }}>
+                                          {diffCost > 0 ? '+' : ''}{diffCost.toLocaleString('it-IT', { style: 'currency', currency: 'EUR' })}
+                                        </td>
+                                      </tr>
+                                    );
+                                  });
+                                })()}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+                      </>
+                    )}
+
+                  </div>
+                );
+              })()}
             </div>
           )}
 

@@ -261,6 +261,29 @@ function getProjectHoursReport(req, res) {
   }
 }
 
+function getProjectActualsReport(req, res) {
+  try {
+    const rows = db.prepare(`
+      SELECT 
+        dr.projectName,
+        mr.userId,
+        u.name as userName,
+        SUM(dr.hours) as hours,
+        SUM((dr.hours / 8.0) * u.internal_cost) as cost
+      FROM daily_reports dr
+      JOIN monthly_reports mr ON dr.monthlyReportId = mr.id
+      JOIN users u ON mr.userId = u.id
+      WHERE mr.status = 'Inviato' AND dr.projectName IS NOT NULL AND dr.projectName != ''
+      GROUP BY dr.projectName, mr.userId, u.name
+    `).all();
+    
+    res.json(rows);
+  } catch (err) {
+    console.error('Error fetching project actuals report:', err);
+    res.status(500).json({ error: 'Errore interno del server durante il recupero dei consuntivi' });
+  }
+}
+
 module.exports = {
   getProjects,
   createProject,
@@ -269,5 +292,6 @@ module.exports = {
   getUserProjects,
   setUserProjects,
   getMyProjects,
-  getProjectHoursReport
+  getProjectHoursReport,
+  getProjectActualsReport
 };
