@@ -137,6 +137,7 @@ app.post('/api/users/:id/projects', requireAuth, requireRoles(['Admin']), projec
 app.get('/api/my-projects', requireAuth, projectController.getMyProjects);
 app.get('/api/reports/projects', requireAuth, requireRoles(['Admin', 'HR']), projectController.getProjectHoursReport);
 app.get('/api/reports/actuals', requireAuth, requireRoles(['Admin', 'HR', 'Team Leader']), projectController.getProjectActualsReport);
+app.get('/api/reports/actuals-trend', requireAuth, requireRoles(['Admin', 'HR', 'Team Leader']), projectController.getProjectActualsTrendReport);
 
 // 8. Absence Types (Anagrafica Assenze)
 app.get('/api/absence-types', requireAuth, absenceTypeController.getAbsenceTypes);

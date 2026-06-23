@@ -131,17 +131,25 @@ test.describe('Dashboard Preventivo vs Consuntivo - E2E Tests', () => {
     // Preventivato: Costo = 120 (costo giornaliero Mario Rossi) * 10 = 1200
     // Consuntivato: Costo = 40 ore / 8 * 120 = 600
     // Variance: Costo = 600 - 1200 = -600 (risparmio)
-    const plannedCard = page.locator('.glass-card', { hasText: 'Preventivo (Plan)' });
+    const plannedCard = page.locator('.glass-card', { hasText: 'Costo pianificato per' });
     await expect(plannedCard).toContainText(/1[.,]?200[.,]00/);
     await expect(plannedCard).toContainText(/60[.,]0%/); // Margine preventivo
 
-    const actualCard = page.locator('.glass-card', { hasText: 'Consuntivo (Actual)' });
+    const actualCard = page.locator('.glass-card', { hasText: 'Costo effettivo registrato' });
     await expect(actualCard).toContainText(/600[.,]00/);
     await expect(actualCard).toContainText(/80[.,]0%/); // Margine consuntivo (3000-600)/3000 = 80%
 
-    const varianceCard = page.locator('.glass-card', { hasText: 'Scostamento (Variance)' });
+    const varianceCard = page.locator('.glass-card', { hasText: 'Varianza di costo' });
     await expect(varianceCard).toContainText(/-600[.,]00/);
     await expect(varianceCard).toContainText(/\+20[.,]0%/); // Margine varianza
+
+    // Verifica che il grafico di andamento (S-Curve) sia visibile e contenga le etichette corrette
+    const chartCard = page.locator('.glass-card', { hasText: 'Andamento e Previsione Commessa' });
+    await expect(chartCard).toBeVisible();
+    await expect(chartCard.locator('svg').last()).toBeVisible();
+    await expect(chartCard.locator('text', { hasText: 'Budget:' })).toBeVisible();
+    await expect(chartCard.locator('text', { hasText: 'Stima (EAC):' })).toBeVisible();
+    await expect(chartCard.locator('text', { hasText: 'Cons.:' })).toBeVisible();
 
     // Verifica il dettaglio risorsa
     const tableRow = page.locator('.custom-table tbody tr', { hasText: 'Mario Rossi' });

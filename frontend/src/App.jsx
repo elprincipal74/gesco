@@ -235,6 +235,7 @@ export default function App() {
   
   // Preventivo vs Consuntivo State
   const [actualsList, setActualsList] = useState([]);
+  const [actualsTrendList, setActualsTrendList] = useState([]);
   const [comparisonProjectId, setComparisonProjectId] = useState('');
   
   const [currentUser, setCurrentUser] = useState(() => {
@@ -952,6 +953,12 @@ export default function App() {
       if (res.ok) {
         const data = await res.json();
         setActualsList(data);
+      }
+      
+      const resTrend = await fetch(`${API_BASE}/reports/actuals-trend`);
+      if (resTrend.ok) {
+        const dataTrend = await resTrend.json();
+        setActualsTrendList(dataTrend);
       }
     } catch (err) {
       console.error("Error fetching project actuals:", err);
@@ -4455,6 +4462,344 @@ export default function App() {
                           </div>
 
                         </div>
+
+                        {/* Trend and Forecast Chart Card */}
+                        {(() => {
+                          const projectTrendActuals = actualsTrendList.filter(t => t.projectName === project.name);
+                          
+                          // Helper to generate months in the project timeline
+                          const generateProjectMonths = (proj, trendData) => {
+                            let startY, startM, endY, endM;
+                            const isValidYMD = (str) => typeof str === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(str);
+
+                            if (isValidYMD(proj.start_date) && isValidYMD(proj.end_date)) {
+                              startY = parseInt(proj.start_date.substring(0, 4));
+                              startM = parseInt(proj.start_date.substring(5, 7));
+                              endY = parseInt(proj.end_date.substring(0, 4));
+                              endM = parseInt(proj.end_date.substring(5, 7));
+                            } else {
+                              const projectTrend = trendData.filter(t => t.projectName === proj.name);
+                              if (projectTrend.length > 0) {
+                                startY = Math.min(...projectTrend.map(t => t.year));
+                                const startYearsTrend = projectTrend.filter(t => t.year === startY);
+                                startM = Math.min(...startYearsTrend.map(t => t.month));
+
+                                endY = Math.max(...projectTrend.map(t => t.year));
+                                const endYearsTrend = projectTrend.filter(t => t.year === endY);
+                                endM = Math.max(...endYearsTrend.map(t => t.month));
+                              } else {
+                                const now = new Date();
+                                startY = now.getFullYear();
+                                startM = now.getMonth() + 1;
+                                endY = startY;
+                                endM = startM + 5;
+                                if (endM > 12) {
+                                  endY += Math.floor((endM - 1) / 12);
+                                  endM = ((endM - 1) % 12) + 1;
+                                }
+                              }
+                            }
+
+                            const monthsList = [];
+                            let currY = startY;
+                            let currM = startM;
+                            let loopGuard = 0;
+                            while ((currY < endY || (currY === endY && currM <= endM)) && loopGuard < 120) {
+                              loopGuard++;
+                              const monthNamesShort = ["Gen", "Feb", "Mar", "Apr", "Mag", "Giu", "Lug", "Ago", "Set", "Ott", "Nov", "Dic"];
+                              monthsList.push({
+                                year: currY,
+                                month: currM,
+                                label: `${monthNamesShort[currM - 1]} ${currY}`
+                              });
+                              currM++;
+                              if (currM > 12) {
+                                currM = 1;
+                                currY++;
+                              }
+                            }
+
+                            if (monthsList.length === 0) {
+                              monthsList.push({
+                                year: startY,
+                                month: startM,
+                                label: `Mese ${startM}`
+                              });
+                            }
+                            return monthsList;
+                          };
+
+                          const projectMonths = generateProjectMonths(project, actualsTrendList);
+
+                          // 1. Planned Curve (Baseline)
+                          const plannedPoints = projectMonths.map((m, i) => {
+                            return projectMonths.length > 1 ? (plannedTotalCost * i) / (projectMonths.length - 1) : plannedTotalCost;
+                          });
+
+                          // 2. Actual Curve (Consuntivo)
+                          let lastActualIndex = -1;
+                          for (let i = 0; i < projectMonths.length; i++) {
+                            const m = projectMonths[i];
+                            const hasData = projectTrendActuals.some(t => t.year === m.year && t.month === m.month);
+                            if (hasData) {
+                              lastActualIndex = i;
+                            }
+                          }
+
+                          const actualPoints = [];
+                          let runningActualSum = 0;
+                          for (let i = 0; i <= lastActualIndex; i++) {
+                            const m = projectMonths[i];
+                            const match = projectTrendActuals.find(t => t.year === m.year && t.month === m.month);
+                            runningActualSum += match ? parseFloat(match.cost) || 0 : 0;
+                            actualPoints.push(runningActualSum);
+                          }
+
+                          // 3. Forecast Curve (Previsionale)
+                          const forecastPoints = [];
+                          const lastActualVal = lastActualIndex >= 0 ? actualPoints[lastActualIndex] : 0;
+                          
+                          // EAC = AC + remaining planned
+                          const remainingPlannedCost = lastActualIndex === -1 ? plannedTotalCost : plannedTotalCost * (1 - (lastActualIndex / (projectMonths.length - 1 || 1)));
+                          const finalEac = lastActualIndex === -1 ? plannedTotalCost : lastActualVal + remainingPlannedCost;
+
+                          for (let i = 0; i < projectMonths.length; i++) {
+                            if (i <= lastActualIndex) {
+                              forecastPoints.push(actualPoints[i]);
+                            } else {
+                              const fraction = lastActualIndex === -1 
+                                ? (projectMonths.length > 1 ? i / (projectMonths.length - 1) : 1)
+                                : (i - lastActualIndex) / (projectMonths.length - 1 - lastActualIndex || 1);
+                              forecastPoints.push(lastActualVal + fraction * (finalEac - lastActualVal));
+                            }
+                          }
+
+                          // SVG Config
+                          const width = 800;
+                          const height = 280;
+                          const paddingLeft = 80;
+                          const paddingRight = 150; // space for labels
+                          const paddingTop = 30;
+                          const paddingBottom = 40;
+                          const chartWidth = width - paddingLeft - paddingRight;
+                          const chartHeight = height - paddingTop - paddingBottom;
+
+                          const maxVal = Math.max(plannedTotalCost, lastActualVal, finalEac, 100) * 1.1;
+
+                          // Helper to get coordinates
+                          const getX = (index) => paddingLeft + (index / (projectMonths.length - 1 || 1)) * chartWidth;
+                          const getY = (val) => height - paddingBottom - (val / maxVal) * chartHeight;
+
+                          // Generate path string helpers
+                          const makePath = (points) => {
+                            if (points.length === 0) return '';
+                            return points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${getX(i)} ${getY(p)}`).join(' ');
+                          };
+
+                          const plannedPath = makePath(plannedPoints);
+                          const actualPath = makePath(actualPoints);
+                          const forecastPath = makePath(forecastPoints);
+
+                          // Grid lines values (4 levels)
+                          const gridLevels = [0, maxVal * 0.25, maxVal * 0.5, maxVal * 0.75, maxVal];
+
+                          return (
+                            <div className="glass-card" style={{ padding: '24px' }}>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '15px' }}>
+                                <h3 className="card-title" style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                  <BarChart2 size={20} style={{ color: 'var(--color-primary)' }} />
+                                  Andamento e Previsione Commessa (S-Curve)
+                                </h3>
+                                {/* Legend */}
+                                <div style={{ display: 'flex', gap: '20px', fontSize: '0.85rem', flexWrap: 'wrap' }}>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                    <span style={{ display: 'inline-block', width: '16px', height: '3px', backgroundColor: '#99c2a2' }}></span>
+                                    <span style={{ color: 'var(--text-secondary)' }}>Preventivo (Plan)</span>
+                                  </div>
+                                  {lastActualIndex >= 0 && (
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                      <span style={{ display: 'inline-block', width: '16px', height: '3px', backgroundColor: '#ffffff' }}></span>
+                                      <span style={{ color: 'var(--text-secondary)' }}>Consuntivo (Actual)</span>
+                                    </div>
+                                  )}
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                    <span style={{ display: 'inline-block', width: '16px', height: '3px', borderTop: '3px dashed var(--color-primary)' }}></span>
+                                    <span style={{ color: 'var(--text-secondary)' }}>Previsione (Forecast)</span>
+                                  </div>
+                                </div>
+                              </div>
+
+                              <div style={{ width: '100%', overflowX: 'auto' }}>
+                                <svg width="100%" height={height} viewBox={`0 0 ${width} ${height}`} style={{ minWidth: '600px', display: 'block' }}>
+                                  {/* Grid Lines and Y-Axis Labels */}
+                                  {gridLevels.map((lvl, idx) => {
+                                    const y = getY(lvl);
+                                    return (
+                                      <g key={idx}>
+                                        <line 
+                                          x1={paddingLeft} 
+                                          y1={y} 
+                                          x2={paddingLeft + chartWidth} 
+                                          y2={y} 
+                                          stroke="rgba(255,255,255,0.06)" 
+                                          strokeWidth="1" 
+                                          strokeDasharray="4 4"
+                                        />
+                                        <text 
+                                          x={paddingLeft - 10} 
+                                          y={y + 4} 
+                                          fill="var(--text-muted)" 
+                                          fontSize="11" 
+                                          textAnchor="end"
+                                        >
+                                          {lvl.toLocaleString('it-IT', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 })}
+                                        </text>
+                                      </g>
+                                    );
+                                  })}
+
+                                  {/* X-Axis Labels */}
+                                  {projectMonths.map((m, idx) => {
+                                    const x = getX(idx);
+                                    return (
+                                      <text 
+                                        key={idx}
+                                        x={x} 
+                                        y={height - paddingBottom + 20} 
+                                        fill="var(--text-muted)" 
+                                        fontSize="11" 
+                                        textAnchor="middle"
+                                      >
+                                        {m.label}
+                                      </text>
+                                    );
+                                  })}
+
+                                  {/* X-Axis Line */}
+                                  <line 
+                                    x1={paddingLeft} 
+                                    y1={height - paddingBottom} 
+                                    x2={paddingLeft + chartWidth} 
+                                    y2={height - paddingBottom} 
+                                    stroke="rgba(255,255,255,0.15)" 
+                                    strokeWidth="1"
+                                  />
+
+                                  {/* Y-Axis Line */}
+                                  <line 
+                                    x1={paddingLeft} 
+                                    y1={paddingTop} 
+                                    x2={paddingLeft} 
+                                    y2={height - paddingBottom} 
+                                    stroke="rgba(255,255,255,0.15)" 
+                                    strokeWidth="1"
+                                  />
+
+                                  {/* Planned Path Line */}
+                                  {plannedPath && (
+                                    <path 
+                                      d={plannedPath} 
+                                      fill="none" 
+                                      stroke="#99c2a2" 
+                                      strokeWidth="2.5" 
+                                      strokeOpacity="0.8"
+                                    />
+                                  )}
+
+                                  {/* Forecast Path Line */}
+                                  {forecastPath && (
+                                    <path 
+                                      d={forecastPath} 
+                                      fill="none" 
+                                      stroke="var(--color-primary)" 
+                                      strokeWidth="2.5" 
+                                      strokeDasharray="5 5"
+                                    />
+                                  )}
+
+                                  {/* Actual Path Line */}
+                                  {actualPath && (
+                                    <path 
+                                      d={actualPath} 
+                                      fill="none" 
+                                      stroke="#ffffff" 
+                                      strokeWidth="3.5"
+                                    />
+                                  )}
+
+                                  {/* Data dots / markers */}
+                                  {plannedPoints.map((p, idx) => (
+                                    <circle 
+                                      key={`plan-${idx}`}
+                                      cx={getX(idx)} 
+                                      cy={getY(p)} 
+                                      r="4" 
+                                      fill="#99c2a2"
+                                    />
+                                  ))}
+                                  
+                                  {forecastPoints.map((p, idx) => {
+                                    if (idx < lastActualIndex) return null;
+                                    return (
+                                      <circle 
+                                        key={`fore-${idx}`}
+                                        cx={getX(idx)} 
+                                        cy={getY(p)} 
+                                        r="4" 
+                                        fill="var(--color-primary)"
+                                      />
+                                    );
+                                  })}
+
+                                  {actualPoints.map((p, idx) => (
+                                    <circle 
+                                      key={`act-${idx}`}
+                                      cx={getX(idx)} 
+                                      cy={getY(p)} 
+                                      r="4" 
+                                      fill="#ffffff"
+                                      stroke="var(--bg-main)"
+                                      strokeWidth="1.5"
+                                    />
+                                  ))}
+
+                                  {/* Endpoint Labels */}
+                                  <text 
+                                    x={getX(projectMonths.length - 1) + 8} 
+                                    y={getY(plannedTotalCost) + 4} 
+                                    fill="#99c2a2" 
+                                    fontSize="11" 
+                                    fontWeight="600"
+                                  >
+                                    Budget: {plannedTotalCost.toLocaleString('it-IT', { style: 'currency', currency: 'EUR' })}
+                                  </text>
+
+                                  <text 
+                                    x={getX(projectMonths.length - 1) + 8} 
+                                    y={getY(finalEac) - 8} 
+                                    fill="var(--color-primary)" 
+                                    fontSize="11" 
+                                    fontWeight="600"
+                                  >
+                                    Stima (EAC): {finalEac.toLocaleString('it-IT', { style: 'currency', currency: 'EUR' })}
+                                  </text>
+
+                                  {lastActualIndex >= 0 && (
+                                    <text 
+                                      x={getX(lastActualIndex) + 8} 
+                                      y={getY(lastActualVal) + 12} 
+                                      fill="#ffffff" 
+                                      fontSize="11" 
+                                      fontWeight="700"
+                                    >
+                                      Cons.: {lastActualVal.toLocaleString('it-IT', { style: 'currency', currency: 'EUR' })}
+                                    </text>
+                                  )}
+                                </svg>
+                              </div>
+                            </div>
+                          );
+                        })()}
 
                         {/* Resource Breakdown Table Card */}
                         <div className="glass-card">

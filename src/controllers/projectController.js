@@ -284,6 +284,30 @@ function getProjectActualsReport(req, res) {
   }
 }
 
+function getProjectActualsTrendReport(req, res) {
+  try {
+    const rows = db.prepare(`
+      SELECT 
+        dr.projectName,
+        mr.year,
+        mr.month,
+        SUM(dr.hours) as hours,
+        SUM((dr.hours / 8.0) * u.internal_cost) as cost
+      FROM daily_reports dr
+      JOIN monthly_reports mr ON dr.monthlyReportId = mr.id
+      JOIN users u ON mr.userId = u.id
+      WHERE mr.status = 'Inviato' AND dr.projectName IS NOT NULL AND dr.projectName != ''
+      GROUP BY dr.projectName, mr.year, mr.month
+      ORDER BY mr.year ASC, mr.month ASC
+    `).all();
+    
+    res.json(rows);
+  } catch (err) {
+    console.error('Error fetching project actuals trend report:', err);
+    res.status(500).json({ error: 'Errore interno del server durante il recupero del trend dei consuntivi' });
+  }
+}
+
 module.exports = {
   getProjects,
   createProject,
@@ -293,5 +317,6 @@ module.exports = {
   setUserProjects,
   getMyProjects,
   getProjectHoursReport,
-  getProjectActualsReport
+  getProjectActualsReport,
+  getProjectActualsTrendReport
 };
