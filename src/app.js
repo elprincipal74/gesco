@@ -126,6 +126,7 @@ app.post('/api/timesheets/submit', requireAuth, timesheetController.submitTimesh
 app.get('/api/timesheets/pending', requireAuth, requireRoles(['Admin', 'HR', 'Team Leader']), timesheetController.getPendingTimesheets);
 app.post('/api/timesheets/:id/approve', requireAuth, requireRoles(['Admin', 'HR', 'Team Leader']), timesheetController.approveTimesheet);
 app.post('/api/timesheets/:id/reject', requireAuth, requireRoles(['Admin', 'HR', 'Team Leader']), validate('rejectTimesheet'), timesheetController.rejectTimesheet);
+app.post('/api/timesheets/:id/reopen', requireAuth, requireRoles(['Admin', 'HR']), timesheetController.reopenTimesheet);
 
 // 7. Projects (Commesse)
 app.get('/api/projects', requireAuth, requireRoles(['Admin', 'HR', 'Team Leader']), projectController.getProjects);
@@ -138,6 +139,13 @@ app.get('/api/my-projects', requireAuth, projectController.getMyProjects);
 app.get('/api/reports/projects', requireAuth, requireRoles(['Admin', 'HR']), projectController.getProjectHoursReport);
 app.get('/api/reports/actuals', requireAuth, requireRoles(['Admin', 'HR', 'Team Leader']), projectController.getProjectActualsReport);
 app.get('/api/reports/actuals-trend', requireAuth, requireRoles(['Admin', 'HR', 'Team Leader']), projectController.getProjectActualsTrendReport);
+app.get('/api/reports/expenses', requireAuth, requireRoles(['Admin', 'HR', 'Team Leader']), projectController.getAllProjectExpenses);
+
+// 7.1 Non-Labor Expenses
+app.get('/api/projects/:projectId/expenses', requireAuth, requireRoles(['Admin', 'HR', 'Team Leader']), projectController.getProjectExpenses);
+app.post('/api/projects/:projectId/expenses', requireAuth, requireRoles(['Admin', 'HR', 'Team Leader']), projectController.createProjectExpense);
+app.put('/api/projects/:projectId/expenses/:expenseId', requireAuth, requireRoles(['Admin', 'HR', 'Team Leader']), projectController.updateProjectExpense);
+app.delete('/api/projects/:projectId/expenses/:expenseId', requireAuth, requireRoles(['Admin', 'HR', 'Team Leader']), projectController.deleteProjectExpense);
 
 // 8. Absence Types (Anagrafica Assenze)
 app.get('/api/absence-types', requireAuth, absenceTypeController.getAbsenceTypes);

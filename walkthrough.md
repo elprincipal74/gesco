@@ -71,6 +71,7 @@ Running 12 tests using 1 worker
   ok 12 tests\project_crud_spec.js:14:3 › Gestione Commesse - E2E Tests › CRUD completo commessa con campi finanziari e gestionali come Admin (4.6s)
 
   12 passed (1.2m)
+```
 
 ---
 
@@ -241,4 +242,287 @@ Eseguiti con successo tutti i 12 test della suite di test Playwright: tutti i te
 Esecuzione completa dei 14 test E2E di Playwright superata con successo:
 - `14 passed (1.4m)`
 
+---
 
+## Aggiornamento: Abilitazione Anagrafica Collaboratori per HR (20 Giugno 2026)
+
+### Modifiche Apportate
+
+1. **Rotte Backend (`src/app.js`)**:
+   - Aggiornate le rotte `POST /api/users` e `DELETE /api/users/:id` per consentire l'accesso sia ad `Admin` che a `HR` tramite il middleware `requireRoles(['Admin', 'HR'])`.
+   - Modificata la validazione in `PUT /api/users/:id` affinché venga applicato lo schema di validazione amministrativa `userAdminUpdate` se il ruolo dell'utente corrente è `Admin` o `HR`.
+
+2. **Controller Backend (`src/controllers/userController.js`)**:
+   - Estesa la condizione di aggiornamento dati in `updateProfile` da `if (req.user.role === 'Admin')` a `if (req.user.role === 'Admin' || req.user.role === 'HR')`, garantendo al ruolo HR i privilegi per modificare campi protetti (costo giornaliero, inquadramento contrattuale, totale giorni di ferie, ruolo, password).
+
+3. **Menu e Navigazione Frontend (`frontend/src/App.jsx`)**:
+   - Spostata la voce di navigazione "Anagrafica Collaboratori" nella sidebar e nel menu a tendina del profilo al di fuori del blocco esclusivo per l'Admin, esponendola anche per l'utente con ruolo `HR`.
+   - Modificato il rendering del contenitore tab `{activeTab === 'users' && currentUser && ...}` affinché venga visualizzato correttamente per entrambi i ruoli `Admin` e `HR`.
+
+4. **Test di Integrazione E2E (`tests/employee_crud_spec.js`)**:
+   - Aggiunto il test end-to-end `CRUD completo collaboratore come HR` che simula l'accesso come `HR User` mediante l'accesso rapido, esegue la navigazione nel tab di anagrafica, crea un nuovo collaboratore compilando tutti i campi (compreso il costo giornaliero e il livello), ne modifica i dettagli, lo salva e infine lo elimina.
+
+### Risultati dei Test E2E
+Esecuzione completa della suite di test Playwright con tutti i **15 test passati con successo (100%)**:
+```bash
+Running 15 tests using 1 worker
+
+  ok  1 tests\absence_spec.js:14:3 › Gestione Tipi Assenza - E2E Tests › Creazione di un nuovo tipo di assenza come Admin (1.9s)
+  ok  2 tests\employee_crud_spec.js:14:3 › Gestione Anagrafica Collaboratori - E2E Tests › CRUD completo collaboratore come Admin (6.5s)
+  ok  3 tests\employee_crud_spec.js:93:3 › Gestione Anagrafica Collaboratori - E2E Tests › CRUD completo collaboratore come HR (4.7s)
+  ...
+  15 passed (1.6m)
+```
+
+---
+
+## Aggiornamento: Dashboard Confronto Preventivo vs Consuntivo (23 Giugno 2026)
+
+### Modifiche Apportate
+
+1. **Rotte Backend & Logica di Estrazione dei Consuntivi (`src/app.js`, `src/controllers/projectController.js`)**:
+   - Registrato l'endpoint `GET /api/reports/actuals` accessibile ai ruoli `Admin`, `HR` e `Team Leader`.
+   - Implementato il metodo `getProjectActualsReport` nel controller dei progetti per calcolare a livello di database le ore e i costi effettivi di tutti i progetti:
+     - Aggrega le ore inserite nei rapportini giornalieri (`daily_reports`) collegati a rapportini mensili (`monthly_reports`) il cui stato sia `'Inviato'` (ossia inviati ma non ancora approvati).
+     - Calcola il costo economico effettivo rapportando le ore lavorate a una giornata standard di 8 ore, moltiplicato per il costo interno giornaliero del collaboratore (`users.internal_cost`):
+       `Costo Consuntivato = (Ore Lavorate / 8.0) * Costo Giornaliero`.
+
+2. **Interfaccia Grafica Frontend (`frontend/src/App.jsx`)**:
+   - Abilitato il tab **Preventivo vs Consuntivo** (`comparison`) per i ruoli `Admin`, `HR` e `Team Leader` sia nella barra laterale di navigazione che nel menu a tendina del profilo utente.
+   - Creata una dashboard interattiva composta da:
+     - **Selettore Commessa**: Un menu a tendina per scegliere il progetto da confrontare.
+     - **Info Progetto**: Visualizza data inizio, data fine, prezzo di vendita, responsabile, PM e margine target.
+     - **Visualizzazione Scenari**: Blocco informativo sulla pianificazione ottimale selezionata (nome dello scenario configurato come ottimale). Se non c'è una pianificazione ottimale configurata, viene mostrato un avviso che invita a configurarla tramite la simulazione.
+     - **Schede di Sintesi (KPI)**:
+       - **Preventivo (Plan)**: Costo totale preventivato, totale ore pianificate e margine atteso.
+       - **Consuntivo (Actual)**: Costo totale effettivo (calcolato dai rapportini `'Inviato'`), ore lavorate e margine consuntivato corrente.
+       - **Scostamento (Variance)**: Varianza di costo, varianza ore e scostamento in punti percentuali del margine.
+     - **Tabella di Dettaglio per Risorsa**: Mostra il confronto riga per riga (ore pianificate vs consuntivate, scostamento ore, costo preventivo vs consuntivo, varianza costo) per ciascun dipendente allocato o che ha registrato ore sul progetto. Include un badge "Non Pianificato" per i dipendenti non presenti nella simulazione ma che hanno lavorato sul progetto.
+
+3. **Nuova Suite di Test E2E Playwright (`tests/comparison_spec.js`)**:
+   - Creato un test end-to-end completo per testare l'intero flusso:
+     - Login come Admin, creazione di una nuova commessa "Confronto Progetto" con prezzo 3000€ e margine target 20%, e assegnazione a Mario Rossi.
+     - Navigazione in Simulazione, aggiunta di Mario Rossi con 10 giorni, salvataggio dello scenario come "Scenario Ottimale" e impostazione come "PIANIFICAZIONE OTTIMALE".
+     - Login come Mario Rossi, inserimento di 8 ore al giorno per 5 giorni (40 ore totali) ad Agosto 2026 sul progetto "Confronto Progetto", salvataggio bozza e invio del rapportino (stato `Inviato`).
+     - Login come Team Leader Giuseppe Verdi, apertura della dashboard "Preventivo vs Consuntivo" e verifica di tutti i dati:
+       - Preventivato: Costo = 1200€, Margine = 60.0%
+       - Consuntivato: Costo = 600€, Margine = 80.0%
+       - Scostamento: Costo = -600€, Margine = +20.0%
+       - Tabella: record di Mario Rossi con 80h pianificate, 40h effettive, scostamento -40h, costo preventivo 1200€, costo consuntivo 600€ e varianza -600€.
+   - Incorporata una funzione helper locale `dismissModals` per gestire in modo robusto la dismissione dei popup bloccanti all'accesso degli utenti.
+   - Rese le asserzioni numeriche resilienti a variazioni di localizzazione e formato decimali tramite l'uso di espressioni regolari (es.  ok  1 tests\absence_spec.js:14:3 › Gestione Tipi Assenza - E2E Tests › Creazione di un nuovo tipo di assenza come Admin (5.0s)
+  ok  2 tests\comparison_spec.js:39:3 › Dashboard Preventivo vs Consuntivo - E2E Tests › Flusso completo di confronto preventivo vs consuntivo (22.9s)
+  ok  3 tests\employee_crud_spec.js:14:3 › Gestione Anagrafica Collaboratori - E2E Tests › CRUD completo collaboratore come Admin (5.4s)
+  ok  4 tests\employee_crud_spec.js:93:3 › Gestione Anagrafica Collaboratori - E2E Tests › CRUD completo collaboratore come HR (4.6s)
+  ok  5 tests\playwright_spec.js:19:3 › Sistema Gestione Ferie - E2E Tests › 1. Login come Dipendente e inserimento richiesta ferie di 1 giorno (3.0s)
+  ok  6 tests\playwright_spec.js:46:3 › Sistema Gestione Ferie - E2E Tests › 2. Richiesta di Malattia senza allegato obbligatorio (ora facoltativo) (2.8s)
+  ok  7 tests\playwright_spec.js:68:3 › Sistema Gestione Ferie - E2E Tests › 3. Approvazione richiesta da parte dell'utente HR con evidenza approvatore (10.3s)
+  ok  8 tests\playwright_spec.js:107:3 › Sistema Gestione Ferie - E2E Tests › 4. Rifiuto richiesta da parte dell'Admin con motivazione visibile (10.2s)
+  ok  9 tests\playwright_spec.js:147:3 › Sistema Gestione Ferie - E2E Tests › 5. Configurazione dei limiti globali e convalida regole d'uso (7.3s)
+  ok 10 tests\playwright_spec.js:168:3 › Sistema Gestione Ferie - E2E Tests › 6. Invio comunicazione da Admin e visualizzazione popup bloccante per dipendente (7.8s)
+  ok 11 tests\playwright_spec.js:195:3 › Sistema Gestione Ferie - E2E Tests › 7. Compilazione e invio in approvazione di un rapportino (8.1s)
+  ok 12 tests\playwright_spec.js:229:3 › Sistema Gestione Ferie - E2E Tests › 8. Approvazione del rapportino da parte del Team Leader Giuseppe Verdi (8.7s)
+  ok 13 tests\playwright_spec.js:293:3 › Sistema Gestione Ferie - E2E Tests › 9. Rifiuto del rapportino da parte del Team Leader con motivazione (12.8s)
+  ok 14 tests\project_crud_spec.js:14:3 › Gestione Commesse - E2E Tests › CRUD completo commessa con campi finanziari e gestionali come Admin (5.7s)
+  ok 15 tests\simulation_spec.js:14:3 › Simulazione Commesse - E2E Tests › Pianificazione e calcolo margine commessa come Team Leader (6.3s)
+  ok 16 tests\simulation_spec.js:107:3 › Simulazione Commesse - E2E Tests › Salvataggio molteplici scenari, caricamento e impostazione pianificazione ottimale esclusiva (8.8s)
+
+  16 passed (2.2m)
+```
+
+---
+
+## Aggiornamento: Grafico di Andamento e Previsione Commessa (23 Giugno 2026)
+
+### Modifiche Apportate
+
+1. **Rotte Backend (`src/app.js`, `src/controllers/projectController.js`)**:
+   - Registrata la rotta `GET /api/reports/actuals-trend` con controllo dei ruoli `Admin`, `HR` e `Team Leader`.
+   - Implementato il metodo `getProjectActualsTrendReport` nel controller dei progetti per estrarre la serie temporale dei consuntivi (ore e costi effettivi aggregati per progetto, anno e mese) ordinati cronologicamente.
+
+2. **Interfaccia Grafica Frontend (`frontend/src/App.jsx`)**:
+   - Creato lo stato `actualsTrendList` e aggiornato il caricamento dei dati in `fetchProjectActuals` per richiamare il nuovo endpoint.
+   - Implementata la logica di calcolo del trend cumulativo (curva a S) e della previsione di commessa:
+     - **Preventivo (Plan)**: Baseline cumulativa lineare da €0 alla data inizio commessa fino al budget totale pianificato (`plannedTotalCost`) alla data fine.
+     - **Consuntivo (Actual)**: Costo cumulativo mensile effettivo basato sui rapportini in stato `Inviato`, che si interrompe all'ultimo mese compilato.
+     - **Previsionale (Forecast)**: Fino all'ultimo consuntivo ricalca il consuntivo reale, dopodiché proietta linearmente l'andamento fino alla data di fine progetto per confluire nella stima finale EAC (`EAC = Consuntivo Totale + Costi Pianificati Rimanenti`).
+     - **Helper di Date**: Inserita la funzione `generateProjectMonths` per costruire la lista cronologica dei mesi a partire dalle date inizio/fine della commessa, con un fallback dinamico basato sui dati reali e sulla data corrente in caso di date non specificate.
+   - **Visualizzazione Grafica**: Inserita una scheda card **Andamento e Previsione Commessa (S-Curve)** con un grafico vettoriale SVG responsive contenente:
+     - Linea verde solida per il Preventivo (Plan).
+     - Linea bianca spessa per il Consuntivo (Actual).
+     - Linea tratteggiata verde per la Previsione (Forecast).
+     - Griglia orizzontale di riferimento con etichette dei costi (€) formattati localmente.
+     - Asse temporale orizzontale con i nomi abbreviati dei mesi.
+     - Marcatori (pallini colorati) sui dati di snodo e scritte di endpoint a destra del grafico (Budget, EAC e Consuntivo corrente) per una lettura immediata dei dati chiave.
+
+3. **E2E Testing (`tests/comparison_spec.js`)**:
+   - Aggiornata la suite di test Playwright per:
+     - Risolvere i conflitti di localizzazione e le collisioni di stringhe stric-mode sui selettori delle card basandosi su body text unici (es. `'Costo pianificato per'`).
+     - Verificare la corretta visibilità della scheda del grafico, del tag `svg` e dei testi di endpoint (`Budget:`, `Stima (EAC):`, `Cons.:`).
+
+### Risultati dei Test E2E
+Esecuzione completa della suite con tutti i **16 test passati con successo (100%)**:
+```bash
+Running 16 tests using 1 worker
+
+  ok  1 tests\absence_spec.js:14:3 › Gestione Tipi Assenza - E2E Tests › Creazione di un nuovo tipo di assenza come Admin (2.5s)
+  ok  2 tests\comparison_spec.js:39:3 › Dashboard Preventivo vs Consuntivo - E2E Tests › Flusso completo di confronto preventivo vs consuntivo (20.4s)
+  ok  3 tests\employee_crud_spec.js:14:3 › Gestione Anagrafica Collaboratori - E2E Tests › CRUD completo collaboratore come Admin (5.5s)
+  ok  4 tests\employee_crud_spec.js:93:3 › Gestione Anagrafica Collaboratori - E2E Tests › CRUD completo collaboratore come HR (3.6s)
+  ok  5 tests\playwright_spec.js:19:3 › Sistema Gestione Ferie - E2E Tests › 1. Login come Dipendente e inserimento richiesta ferie di 1 giorno (2.7s)
+  ok  6 tests\playwright_spec.js:46:3 › Sistema Gestione Ferie - E2E Tests › 2. Richiesta di Malattia senza allegato obbligatorio (ora facoltativo) (2.3s)
+  ok  7 tests\playwright_spec.js:68:3 › Sistema Gestione Ferie - E2E Tests › 3. Approvazione richiesta da parte dell'utente HR con evidenza approvatore (7.7s)
+  ok  8 tests\playwright_spec.js:107:3 › Sistema Gestione Ferie - E2E Tests › 4. Rifiuto richiesta da parte dell'Admin con motivazione visibile (8.9s)
+  ok  9 tests\playwright_spec.js:147:3 › Sistema Gestione Ferie - E2E Tests › 5. Configurazione dei limiti globali e convalida regole d'uso (8.9s)
+  ok 10 tests\playwright_spec.js:168:3 › Sistema Gestione Ferie - E2E Tests › 6. Invio comunicazione da Admin e visualizzazione popup bloccante per dipendente (7.4s)
+  ok 11 tests\playwright_spec.js:195:3 › Sistema Gestione Ferie - E2E Tests › 7. Compilazione e invio in approvazione di un rapportino (7.2s)
+  ok 12 tests\playwright_spec.js:229:3 › Sistema Gestione Ferie - E2E Tests › 8. Approvazione del rapportino da parte del Team Leader Giuseppe Verdi (7.6s)
+  ok 13 tests\playwright_spec.js:293:3 › Sistema Gestione Ferie - E2E Tests › 9. Rifiuto del rapportino da parte del Team Leader con motivazione (12.4s)
+  ok 14 tests\project_crud_spec.js:14:3 › Gestione Commesse - E2E Tests › CRUD completo commessa con campi finanziari e gestionali come Admin (5.2s)
+  ok 15 tests\simulation_spec.js:14:3 › Simulazione Commesse - E2E Tests › Pianificazione e calcolo margine commessa come Team Leader (5.6s)
+  ok 16 tests\simulation_spec.js:107:3 › Simulazione Commesse - E2E Tests › Salvataggio molteplici scenari, caricamento e impostazione pianificazione ottimale esclusiva (7.7s)
+
+  16 passed (2.0m)
+``` margine commessa come Team Leader (6.3s)
+  ok 16 tests\simulation_spec.js:107:3 › Simulazione Commesse - E2E Tests › Salvataggio molteplici scenari, caricamento e impostazione pianificazione ottimale esclusiva (8.8s)
+
+  16 passed (2.2m)
+```
+
+---
+
+## Aggiornamento: Grafico Previsionale a Barre e Ore Mancanti (23 Giugno 2026)
+
+### Modifiche Apportate
+
+1. **Risoluzione Compile Error Frontend**:
+   - Individuata ed aggiunta la chiusura del tag `</div>` mancante per il contenitore `Comparison Cards Row` (griglia delle KPI card) all'interno di `frontend/src/App.jsx`. Questo ha risolto definitivamente il crash di compilazione (HMR/Transform error in Vite).
+
+2. **Ore Mancanti da Consuntivare**:
+   - Integrata una nuova voce nella card **Scostamento (Variance)** denominata `Ore da consuntivare mancanti:` formattata in modo elegante sul fondo della card.
+   - Il valore mostra dinamicamente quante ore mancano alla fine della commessa calcolando la differenza tra le ore pianificate totali (dallo scenario ottimale) e quelle consuntivate: `Max(0, Ore Pianificate - Ore Consuntivate)`.
+
+3. **Chiarificazione del Grafico Previsionale**:
+   - Sostituito il precedente andamento lineare cumulativo con un grafico a barre affiancate mensili più immediato e leggibile.
+   - **Area Previsionale Shaded**: Aggiunta un'area ombreggiata semitrasparente contrassegnata dalla dicitura `"Area Previsionale (Forecast)"` per evidenziare i mesi futuri stimati.
+   - **Linea Divisoria**: Disegnata una linea verticale tratteggiata verde al confine tra il periodo consuntivato corrente e l'inizio del periodo di previsione futura.
+   - **Etichettatura Chiara**: 
+     - Modificate le etichette dell'asse X aggiungendo il suffisso ` (Prev.)` ai mesi previsionali futuri.
+     - Aggiunto il suffisso ` (P)` ai valori numerici posizionati sopra le colonne previsionali.
+
+4. **Testing E2E & Stabilità**:
+   - Aggiornato `tests/comparison_spec.js` per asserire la corretta visualizzazione delle ore mancanti (es. verifica presenza di `"Ore da consuntivare mancanti:"` e del valore specifico `"40h"` nel flusso di test).
+   - Ottimizzata la funzione helper `dismissModals` aumentando il timeout del predicato `.toPass` da 3 a 10 secondi. Questo assicura stabilità del test qualora le chiamate API di reset del database e sottomissione/conferma lettura messaggi presentino piccoli ritardi di scrittura su disco.
+
+### Risultati dei Test E2E
+Eseguita con successo la suite di test Playwright con tutti i **16 test passati con successo (100%)**:
+```bash
+Running 16 tests using 1 worker
+
+  ok  1 tests\absence_spec.js:14:3 › Gestione Tipi Assenza - E2E Tests › Creazione di un nuovo tipo di assenza come Admin (4.8s)
+  ok  2 tests\comparison_spec.js:39:3 › Dashboard Preventivo vs Consuntivo - E2E Tests › Flusso completo di confronto preventivo vs consuntivo (36.5s)
+  ok  3 tests\employee_crud_spec.js:14:3 › Gestione Anagrafica Collaboratori - E2E Tests › CRUD completo collaboratore come Admin (10.0s)
+  ok  4 tests\employee_crud_spec.js:93:3 › Gestione Anagrafica Collaboratori - E2E Tests › CRUD completo collaboratore come HR (11.0s)
+  ok  5 tests\playwright_spec.js:19:3 › Sistema Gestione Ferie - E2E Tests › 1. Login come Dipendente e inserimento richiesta ferie di 1 giorno (5.1s)
+  ok  6 tests\playwright_spec.js:46:3 › Sistema Gestione Ferie - E2E Tests › 2. Richiesta di Malattia senza allegato obbligatorio (ora facoltativo) (5.4s)
+  ok  7 tests\playwright_spec.js:68:3 › Sistema Gestione Ferie - E2E Tests › 3. Approvazione richiesta da parte dell'utente HR con evidenza approvatore (12.0s)
+  ok  8 tests\playwright_spec.js:107:3 › Sistema Gestione Ferie - E2E Tests › 4. Rifiuto richiesta da parte dell'Admin con motivazione visibile (12.6s)
+  ok  9 tests\playwright_spec.js:147:3 › Sistema Gestione Ferie - E2E Tests › 5. Configurazione dei limiti globali e convalida regole d'uso (8.1s)
+  ok 10 tests\playwright_spec.js:168:3 › Sistema Gestione Ferie - E2E Tests › 6. Invio comunicazione da Admin e visualizzazione popup bloccante per dipendente (9.3s)
+  ok 11 tests\playwright_spec.js:195:3 › Sistema Gestione Ferie - E2E Tests › 7. Compilazione e invio in approvazione di un rapportino (15.9s)
+  ok 12 tests\playwright_spec.js:229:3 › Sistema Gestione Ferie - E2E Tests › 8. Approvazione del rapportino da parte del Team Leader Giuseppe Verdi (14.7s)
+  ok 13 tests\playwright_spec.js:293:3 › Sistema Gestione Ferie - E2E Tests › 9. Rifiuto del rapportino da parte del Team Leader con motivazione (22.8s)
+  ok 14 tests\project_crud_spec.js:14:3 › Gestione Commesse - E2E Tests › CRUD completo commessa con campi finanziari e gestionali come Admin (7.0s)
+  ok 15 tests\simulation_spec.js:14:3 › Simulazione Commesse - E2E Tests › Pianificazione e calcolo margine commessa come Team Leader (8.6s)
+  ok 16 tests\simulation_spec.js:107:3 › Simulazione Commesse - E2E Tests › Salvataggio molteplici scenari, caricamento e impostazione pianificazione ottimale esclusiva (9.5s)
+
+  16 passed (3.3m)
+```
+
+---
+
+## Aggiornamento: Rimozione Grafico di Andamento (24 Giugno 2026)
+
+### Modifiche Apportate
+
+1. **Interfaccia Grafica Frontend**:
+   - Rimosso completamente il componente grafico mensile SVG ("Andamento e Previsione Commessa") dal tab `comparison` di `frontend/src/App.jsx`.
+   - Il tab mostra ora solo il riepilogo commessa, le schede KPI principali (Preventivo, Consuntivo e Scostamento) e la tabella di dettaglio economico/ore per ciascun collaboratore, risultando estremamente pulito e a valore aggiunto immediato.
+
+2. **Aggiornamento Test E2E**:
+   - Rimossi i controlli e le asserzioni di visibilità del grafico SVG dal file `tests/comparison_spec.js` (righe 148-154), garantendo l'allineamento con l'interfaccia aggiornata.
+
+### Risultati dei Test E2E
+Rieseguita la suite di test Playwright con tutti i **16 test passati con successo (100%)**:
+```bash
+Running 16 tests using 1 worker
+
+  ok  1 tests\absence_spec.js:14:3 › ... (2.2s)
+  ok  2 tests\comparison_spec.js:39:3 › Dashboard Preventivo vs Consuntivo - E2E Tests › Flusso completo di confronto preventivo vs consuntivo (17.9s)
+  ...
+  16 passed (1.7m)
+```
+
+---
+
+## Aggiornamento: Spese Non-Labor, Portafoglio Commesse, Riapertura Rapportini e Cascade Delete (24 Giugno 2026)
+
+### Modifiche Apportate
+
+1. **Gestione Spese Non-Labor (Costi Extra)**:
+   - **Database**: Creata la tabella `project_expenses` con colonne `id`, `projectId`, `date`, `category`, `description`, `amount`, `createdAt`. Aggiunto un vincolo di chiave esterna con cancellazione in cascata su `projects(id)`.
+   - **Backend (`src/controllers/projectController.js` & `src/app.js`)**: Realizzati gli endpoint REST `GET`, `POST`, `PUT`, `DELETE` per `/api/projects/:projectId/expenses` e l'endpoint di riepilogo `/api/reports/expenses`.
+   - **Calcolo Costi e Margini**: Aggiornata la formula del costo effettivo: `Costo Consuntivato = Costo Lavoro (da rapportini) + Spese Non-Labor`. Di conseguenza, sono stati ricalcolati dinamicamente i margini reali ed i relativi scostamenti.
+   - **Interfaccia Frontend (`frontend/src/App.jsx`)**: Sotto la sezione dei KPI del progetto selezionato nella tab "Preventivo vs Consuntivo", è stata aggiunta la card interattiva **Spese Non-Labor** per visualizzare, inserire, modificare ed eliminare le spese collegate al progetto.
+
+2. **Portfolio Commesse & Alerting**:
+   - **Dashboard Globale di Controllo**: Quando non è selezionata alcuna commessa nel tab "Preventivo vs Consuntivo", viene ora mostrato il pannello **Portfolio Commesse & Controllo Gestione**. Presenta una tabella di sintesi con: budget, costo lavoro, spese non-labor, consuntivo totale, scostamento e margine (target vs effettivo).
+   - **Indicatori di Allerta (Semafori)**:
+     - 🟢 **OK**: Costo consuntivato <= 80% del budget e margine reale >= target.
+     - 🟡 **WARNING**: Costo consuntivato tra 80% e 100% del budget o margine reale inferiore al target di massimo 5 punti percentuali.
+     - 🔴 **CRITICAL**: Costo consuntivato > 100% del budget o margine reale inferiore al target di oltre 5 punti percentuali.
+     - ⚪ **NO PLAN**: Nessuna pianificazione contrassegnata come ottimale.
+   - **Banners di Allerta**: Selezionando una commessa specifica, se questa supera le soglie di costo (80% o 100%) o scende sotto il margine target, vengono mostrati vistosi banner informativi colorati in cima alla pagina.
+
+3. **Riapertura Rapportini (Stato "Inviato" ➔ "Bozza")**:
+   - **Backend (`src/controllers/timesheetController.js` & `src/app.js`)**: Aggiunto l'endpoint `POST /api/timesheets/:id/reopen`. Resetta lo stato del rapportino mensile a `'Bozza'` e azzera i campi di approvazione, inviando una notifica in-app al dipendente per segnalare la riapertura.
+   - **Frontend (`frontend/src/App.jsx`)**: Nella tab "Approvazioni Rapportini", per i ruoli `Admin` e `HR`, è stato introdotto il pulsante **Riapri** accanto ai rapportini inviati, permettendo di sbloccarli e rimandarli in compilazione.
+
+4. **Integrità Referenziale e Cancellazione Collaboratori (Cascade Delete)**:
+   - **Database (`src/database/db.js`)**: Abilitata l'integrità referenziale globale in SQLite tramite `db.pragma('foreign_keys = ON')`.
+   - **Cascade Delete**: Eliminando un dipendente dall'Anagrafica Collaboratori, tutte le sessioni attive, richieste ferie, rapportini mensili, note giornaliere e associazioni a commesse vengono automaticamente rimossi a livello di database per prevenire record orfani.
+
+5. **Test E2E Playwright**:
+   - **Nuova Suite (`tests/monitoring_spec.js`)**: Verifica la visualizzazione del Portfolio Commesse, le allerte, il CRUD completo delle spese non-labor, il flusso di riapertura dei rapportini, e l'integrità referenziale con cascade delete all'eliminazione di un collaboratore.
+   - **Aggiornamento Test Esistenti**: Adattate le asserzioni numeriche in `tests/comparison_spec.js` al nuovo calcolo dei margini reali comprensivi di spese.
+
+---
+
+## Risultati Finali dei Test E2E
+
+Tutti i 19 test di integrità ed end-to-end sono stati eseguiti con successo:
+```bash
+Running 19 tests using 1 worker
+
+  ok  1 tests\absence_spec.js:14:3 › Gestione Tipi Assenza - E2E Tests › Creazione di un nuovo tipo di assenza come Admin (3.0s)
+  ok  2 tests\comparison_spec.js:39:3 › Dashboard Preventivo vs Consuntivo - E2E Tests › Flusso completo di confronto preventivo vs consuntivo (26.0s)
+  ok  3 tests\employee_crud_spec.js:14:3 › Gestione Anagrafica Collaboratori - E2E Tests › CRUD completo collaboratore come Admin (8.3s)
+  ok  4 tests\employee_crud_spec.js:93:3 › Gestione Anagrafica Collaboratori - E2E Tests › CRUD completo collaboratore come HR (5.4s)
+  ok  5 tests\monitoring_spec.js:13:3 › Controllo Gestione, Spese Non-Labor, Riapertura Rapportini e CRUD Collaboratori - E2E Tests › Portfolio Commesse, Allerte e CRUD Spese Non-Labor (6.3s)
+  ok  6 tests\monitoring_spec.js:68:3 › Controllo Gestione, Spese Non-Labor, Riapertura Rapportini e CRUD Collaboratori - E2E Tests › Flusso completo di Riapertura Rapportino (15.2s)
+  ok  7 tests\monitoring_spec.js:133:3 › Controllo Gestione, Spese Non-Labor, Riapertura Rapportini e CRUD Collaboratori - E2E Tests › Validazione Chiavi Esterne (Cascade Delete) Collaboratore (3.1s)
+  ok  8 tests\playwright_spec.js:19:3 › Sistema Gestione Ferie - E2E Tests › 1. Login come Dipendente e inserimento richiesta ferie di 1 giorno (2.7s)
+  ok  9 tests\playwright_spec.js:46:3 › Sistema Gestione Ferie - E2E Tests › 2. Richiesta di Malattia senza allegato obbligatorio (ora facoltativo) (2.8s)
+  ok 10 tests\playwright_spec.js:68:3 › Sistema Gestione Ferie - E2E Tests › 3. Approvazione richiesta da parte dell'utente HR con evidenza approvatore (8.4s)
+  ok 11 tests\playwright_spec.js:107:3 › Sistema Gestione Ferie - E2E Tests › 4. Rifiuto richiesta da parte dell'Admin con motivazione visibile (9.2s)
+  ok 12 tests\playwright_spec.js:147:3 › Sistema Gestione Ferie - E2E Tests › 5. Configurazione dei limiti globali e convalida regole d'uso (6.3s)
+  ok 13 tests\playwright_spec.js:168:3 › Sistema Gestione Ferie - E2E Tests › 6. Invio comunicazione da Admin e visualizzazione popup bloccante per dipendente (6.7s)
+  ok 14 tests\playwright_spec.js:195:3 › Sistema Gestione Ferie - E2E Tests › 7. Compilazione e invio in approvazione di un rapportino (4.3s)
+  ok 15 tests\playwright_spec.js:229:3 › Sistema Gestione Ferie - E2E Tests › 8. Approvazione del rapportino da parte del Team Leader Giuseppe Verdi (6.0s)
+  ok 16 tests\playwright_spec.js:293:3 › Sistema Gestione Ferie - E2E Tests › 9. Rifiuto del rapportino da parte del Team Leader con motivazione (9.3s)
+  ok 17 tests\project_crud_spec.js:14:3 › Gestione Commesse - E2E Tests › CRUD completo commessa con campi finanziari e gestionali come Admin (4.6s)
+  ok 18 tests\simulation_spec.js:14:3 › Simulazione Commesse - E2E Tests › Pianificazione e calcolo margine commessa come Team Leader (5.0s)
+  ok 19 tests\simulation_spec.js:107:3 › Simulazione Commesse - E2E Tests › Salvataggio molteplici scenari, caricamento e impostazione pianificazione ottimale esclusiva (7.2s)
+
+  19 passed (2.5m)
+```

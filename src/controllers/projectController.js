@@ -308,6 +308,117 @@ function getProjectActualsTrendReport(req, res) {
   }
 }
 
+// GET /api/projects/:projectId/expenses
+function getProjectExpenses(req, res) {
+  const { projectId } = req.params;
+  try {
+    const expenses = db.prepare('SELECT * FROM project_expenses WHERE projectId = ? ORDER BY date DESC').all(projectId);
+    res.json(expenses);
+  } catch (err) {
+    console.error('Error fetching project expenses:', err);
+    res.status(500).json({ error: 'Errore durante il recupero delle spese' });
+  }
+}
+
+// POST /api/projects/:projectId/expenses
+function createProjectExpense(req, res) {
+  const { projectId } = req.params;
+  const { date, category, description, amount } = req.body;
+
+  if (!date || !category || amount === undefined || amount === null) {
+    return res.status(400).json({ error: 'Campi obbligatori mancanti: data, categoria e importo' });
+  }
+
+  const numericAmount = parseFloat(amount);
+  if (isNaN(numericAmount) || numericAmount < 0) {
+    return res.status(400).json({ error: 'L\'importo deve essere un valore numerico non negativo' });
+  }
+
+  try {
+    const project = db.prepare('SELECT id FROM projects WHERE id = ?').get(projectId);
+    if (!project) {
+      return res.status(404).json({ error: 'Progetto non trovato' });
+    }
+
+    const id = 'exp-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9);
+    const createdAt = new Date().toISOString();
+
+    db.prepare(`
+      INSERT INTO project_expenses (id, projectId, date, category, description, amount, createdAt)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `).run(id, projectId, date, category, description || '', numericAmount, createdAt);
+
+    const newExpense = db.prepare('SELECT * FROM project_expenses WHERE id = ?').get(id);
+    res.status(201).json(newExpense);
+  } catch (err) {
+    console.error('Error creating project expense:', err);
+    res.status(500).json({ error: 'Errore durante la creazione della spesa' });
+  }
+}
+
+// PUT /api/projects/:projectId/expenses/:expenseId
+function updateProjectExpense(req, res) {
+  const { projectId, expenseId } = req.params;
+  const { date, category, description, amount } = req.body;
+
+  if (!date || !category || amount === undefined || amount === null) {
+    return res.status(400).json({ error: 'Campi obbligatori mancanti: data, categoria e importo' });
+  }
+
+  const numericAmount = parseFloat(amount);
+  if (isNaN(numericAmount) || numericAmount < 0) {
+    return res.status(400).json({ error: 'L\'importo deve essere un valore numerico non negativo' });
+  }
+
+  try {
+    const expense = db.prepare('SELECT id FROM project_expenses WHERE id = ? AND projectId = ?').get(expenseId, projectId);
+    if (!expense) {
+      return res.status(404).json({ error: 'Spesa non trovata per questo progetto' });
+    }
+
+    db.prepare(`
+      UPDATE project_expenses
+      SET date = ?, category = ?, description = ?, amount = ?
+      WHERE id = ? AND projectId = ?
+    `).run(date, category, description || '', numericAmount, expenseId, projectId);
+
+    const updated = db.prepare('SELECT * FROM project_expenses WHERE id = ?').get(expenseId);
+    res.json(updated);
+  } catch (err) {
+    console.error('Error updating project expense:', err);
+    res.status(500).json({ error: 'Errore durante l\'aggiornamento della spesa' });
+  }
+}
+
+// DELETE /api/projects/:projectId/expenses/:expenseId
+function deleteProjectExpense(req, res) {
+  const { projectId, expenseId } = req.params;
+
+  try {
+    const expense = db.prepare('SELECT id FROM project_expenses WHERE id = ? AND projectId = ?').get(expenseId, projectId);
+    if (!expense) {
+      return res.status(404).json({ error: 'Spesa non trovata per questo progetto' });
+    }
+
+    db.prepare('DELETE FROM project_expenses WHERE id = ? AND projectId = ?').run(expenseId, projectId);
+    res.json({ message: 'Spesa eliminata con successo' });
+  } catch (err) {
+    console.error('Error deleting project expense:', err);
+    res.status(500).json({ error: 'Errore durante l\'eliminazione della spesa' });
+  }
+}
+
+// GET /api/reports/expenses
+function getAllProjectExpenses(req, res) {
+  try {
+    const expenses = db.prepare('SELECT * FROM project_expenses ORDER BY date DESC').all();
+    res.json(expenses);
+  } catch (err) {
+    console.error('Error fetching all expenses:', err);
+    res.status(500).json({ error: 'Errore durante il recupero globale delle spese' });
+  }
+}
+
 module.exports = {
   getProjects,
   createProject,
@@ -318,5 +429,10 @@ module.exports = {
   getMyProjects,
   getProjectHoursReport,
   getProjectActualsReport,
-  getProjectActualsTrendReport
+  getProjectActualsTrendReport,
+  getProjectExpenses,
+  createProjectExpense,
+  updateProjectExpense,
+  deleteProjectExpense,
+  getAllProjectExpenses
 };

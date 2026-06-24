@@ -13,6 +13,7 @@ const db = new Database(dbPath);
 // Enable WAL (Write-Ahead Logging) and busy timeout for concurrent performance
 db.pragma('journal_mode = WAL');
 db.pragma('busy_timeout = 5000');
+db.pragma('foreign_keys = ON');
 
 // Create tables if they do not exist
 const tableExists = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='users'").get();
@@ -152,6 +153,20 @@ if (!tableExists) {
       projectId TEXT NOT NULL,
       PRIMARY KEY(userId, projectId),
       FOREIGN KEY(userId) REFERENCES users(id) ON DELETE CASCADE,
+      FOREIGN KEY(projectId) REFERENCES projects(id) ON DELETE CASCADE
+    )
+  `);
+
+  // 9.1 Project Expenses Table
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS project_expenses (
+      id TEXT PRIMARY KEY,
+      projectId TEXT NOT NULL,
+      date TEXT NOT NULL,
+      category TEXT NOT NULL,
+      description TEXT DEFAULT '',
+      amount REAL NOT NULL,
+      createdAt TEXT NOT NULL,
       FOREIGN KEY(projectId) REFERENCES projects(id) ON DELETE CASCADE
     )
   `);
@@ -370,6 +385,7 @@ function resetDatabase() {
     db.prepare('DELETE FROM user_projects').run();
     db.prepare('DELETE FROM projects').run();
     db.prepare('DELETE FROM absence_types').run();
+    db.prepare('DELETE FROM project_expenses').run();
     
     // Seed Users
     if (data.users && Array.isArray(data.users)) {
@@ -642,6 +658,24 @@ try {
   } catch (alterErr) {
     console.error("Errore nell'aggiunta di colonne temporali e gestionali a projects:", alterErr);
   }
+}
+
+// Migrazione per la tabella project_expenses nei database esistenti
+try {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS project_expenses (
+      id TEXT PRIMARY KEY,
+      projectId TEXT NOT NULL,
+      date TEXT NOT NULL,
+      category TEXT NOT NULL,
+      description TEXT DEFAULT '',
+      amount REAL NOT NULL,
+      createdAt TEXT NOT NULL,
+      FOREIGN KEY(projectId) REFERENCES projects(id) ON DELETE CASCADE
+    )
+  `);
+} catch (err) {
+  console.error("Errore durante la creazione della tabella project_expenses nei database esistenti:", err);
 }
 
 db.resetDatabase = resetDatabase;

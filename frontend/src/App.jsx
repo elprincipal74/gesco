@@ -28,7 +28,8 @@ import {
   Copy,
   Sliders,
   Briefcase,
-  BarChart2
+  BarChart2,
+  Euro
 } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import 'jspdf-autotable';
@@ -237,6 +238,16 @@ export default function App() {
   const [actualsList, setActualsList] = useState([]);
   const [actualsTrendList, setActualsTrendList] = useState([]);
   const [comparisonProjectId, setComparisonProjectId] = useState('');
+  const [projectExpenses, setProjectExpenses] = useState([]);
+  const [allExpenses, setAllExpenses] = useState([]);
+
+  // Non-labor expenses form state
+  const [expenseDate, setExpenseDate] = useState('');
+  const [expenseCategory, setExpenseCategory] = useState('Trasferta');
+  const [expenseDescription, setExpenseDescription] = useState('');
+  const [expenseAmount, setExpenseAmount] = useState('');
+  const [editingExpenseId, setEditingExpenseId] = useState(null);
+  const [showExpenseForm, setShowExpenseForm] = useState(false);
   
   const [currentUser, setCurrentUser] = useState(() => {
     try {
@@ -668,6 +679,25 @@ export default function App() {
     }
   };
 
+  const handleReopenTimesheet = async (timesheetId) => {
+    if (!window.confirm("Sei sicuro di voler riaprire questo rapportino e rimandarlo in stato Bozza?")) return;
+    try {
+      const res = await fetch(`${API_BASE}/timesheets/${timesheetId}/reopen`, {
+        method: 'POST'
+      });
+      const data = await res.json();
+      if (res.ok) {
+        addToast("Rapportino riaperto con successo!", "success");
+        fetchPendingTimesheets();
+      } else {
+        addToast(data.error || "Errore durante la riapertura del rapportino", "error");
+      }
+    } catch (err) {
+      console.error(err);
+      addToast("Errore di connessione", "error");
+    }
+  };
+
   const handleUpdateDay = (updatedDay) => {
     if (updatedDay.type === 'Lavoro' && (!updatedDay.projectName || updatedDay.projectName.trim() === '')) {
       addToast("Il nome progetto è obbligatorio per l'attività di tipo Lavoro.", "error");
@@ -936,6 +966,7 @@ export default function App() {
     
     if (activeTab === 'comparison' && (currentUser.role === 'Admin' || currentUser.role === 'HR' || currentUser.role === 'Team Leader')) {
       fetchProjectActuals();
+      fetchAllExpenses();
     }
     
     if (activeTab === 'timesheet') {
@@ -946,6 +977,14 @@ export default function App() {
       fetchProjectReport();
     }
   }, [activeTab, currentUser]);
+
+  useEffect(() => {
+    if (activeTab === 'comparison' && comparisonProjectId) {
+      fetchProjectExpenses(comparisonProjectId);
+    } else {
+      setProjectExpenses([]);
+    }
+  }, [comparisonProjectId, activeTab]);
 
   const fetchProjectActuals = async () => {
     try {
@@ -1001,6 +1040,139 @@ export default function App() {
       }
     } catch (err) {
       console.error("Error fetching project report:", err);
+    }
+  };
+
+  const fetchProjectExpenses = async (projectId) => {
+    if (!projectId) {
+      setProjectExpenses([]);
+      return;
+    }
+    try {
+      const res = await fetch(`${API_BASE}/projects/${projectId}/expenses`);
+      if (res.ok) {
+        const data = await res.json();
+        setProjectExpenses(data);
+      }
+    } catch (err) {
+      console.error("Error fetching project expenses:", err);
+    }
+  };
+
+  const fetchAllExpenses = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/reports/expenses`);
+      if (res.ok) {
+        const data = await res.json();
+        setAllExpenses(data);
+      }
+    } catch (err) {
+      console.error("Error fetching all expenses:", err);
+    }
+  };
+
+  const handleCreateExpense = async (e) => {
+    e.preventDefault();
+    if (!expenseDate || !expenseCategory || !expenseAmount) {
+      addToast("I campi data, categoria e importo sono obbligatori.", "error");
+      return;
+    }
+    const amountVal = parseFloat(expenseAmount);
+    if (isNaN(amountVal) || amountVal < 0) {
+      addToast("L'importo deve essere un numero non negativo.", "error");
+      return;
+    }
+
+    try {
+      const res = await fetch(`${API_BASE}/projects/${comparisonProjectId}/expenses`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          date: expenseDate,
+          category: expenseCategory,
+          description: expenseDescription,
+          amount: amountVal
+        })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        addToast("Spesa registrata con successo!", "success");
+        setExpenseDate('');
+        setExpenseCategory('Trasferta');
+        setExpenseDescription('');
+        setExpenseAmount('');
+        setShowExpenseForm(false);
+        fetchProjectExpenses(comparisonProjectId);
+        fetchAllExpenses();
+      } else {
+        addToast(data.error || "Errore nella creazione della spesa", "error");
+      }
+    } catch (err) {
+      console.error(err);
+      addToast("Errore di connessione", "error");
+    }
+  };
+
+  const handleUpdateExpense = async (e) => {
+    e.preventDefault();
+    if (!expenseDate || !expenseCategory || !expenseAmount) {
+      addToast("I campi data, categoria e importo sono obbligatori.", "error");
+      return;
+    }
+    const amountVal = parseFloat(expenseAmount);
+    if (isNaN(amountVal) || amountVal < 0) {
+      addToast("L'importo deve essere un numero non negativo.", "error");
+      return;
+    }
+
+    try {
+      const res = await fetch(`${API_BASE}/projects/${comparisonProjectId}/expenses/${editingExpenseId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          date: expenseDate,
+          category: expenseCategory,
+          description: expenseDescription,
+          amount: amountVal
+        })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        addToast("Spesa modificata con successo!", "success");
+        setExpenseDate('');
+        setExpenseCategory('Trasferta');
+        setExpenseDescription('');
+        setExpenseAmount('');
+        setEditingExpenseId(null);
+        setShowExpenseForm(false);
+        fetchProjectExpenses(comparisonProjectId);
+        fetchAllExpenses();
+      } else {
+        addToast(data.error || "Errore nella modifica della spesa", "error");
+      }
+    } catch (err) {
+      console.error(err);
+      addToast("Errore di connessione", "error");
+    }
+  };
+
+  const handleDeleteExpense = async (expenseId) => {
+    if (!window.confirm("Sei sicuro di voler eliminare questa spesa?")) return;
+    try {
+      const res = await fetch(`${API_BASE}/projects/${comparisonProjectId}/expenses/${expenseId}`, {
+        method: 'DELETE'
+      });
+      const data = await res.json();
+      if (res.ok) {
+        addToast("Spesa eliminata con successo!", "success");
+        fetchProjectExpenses(comparisonProjectId);
+        fetchAllExpenses();
+      } else {
+        addToast(data.error || "Errore nell'eliminazione della spesa", "error");
+      }
+    } catch (err) {
+      console.error(err);
+      addToast("Errore di connessione", "error");
     }
   };
 
@@ -4265,10 +4437,179 @@ export default function App() {
 
               {(() => {
                 if (!comparisonProjectId) {
+                  const portfolioData = projects.map(proj => {
+                    let localSimulations = [];
+                    try {
+                      const saved = localStorage.getItem(`sim_history_${proj.id}`);
+                      if (saved) localSimulations = JSON.parse(saved);
+                    } catch (e) {
+                      console.error(e);
+                    }
+                    const optimalSim = localSimulations.find(s => s.isOptimal);
+
+                    let plannedTotalCost = null;
+                    if (optimalSim && Array.isArray(optimalSim.resources)) {
+                      plannedTotalCost = 0;
+                      optimalSim.resources.forEach(res => {
+                        plannedTotalCost += (parseFloat(res.cost) || 0) * (parseFloat(res.days) || 0);
+                      });
+                    }
+
+                    const projActuals = actualsList.filter(act => act.projectName === proj.name);
+                    const laborCost = projActuals.reduce((sum, act) => sum + (parseFloat(act.cost) || 0), 0);
+
+                    const projExpenses = allExpenses.filter(exp => exp.projectId === proj.id);
+                    const expensesCost = projExpenses.reduce((sum, exp) => sum + (parseFloat(exp.amount) || 0), 0);
+
+                    const actualTotalCost = laborCost + expensesCost;
+                    const salePrice = parseFloat(proj.sale_price) || 0;
+                    
+                    const actualMarginEur = salePrice - actualTotalCost;
+                    const actualMarginPercent = salePrice > 0 ? (actualMarginEur / salePrice) * 100 : 0;
+                    const targetMarginPercent = parseFloat(proj.margin) || 0;
+
+                    let statusColor = '⚪';
+                    let statusLabel = 'Nessun Piano';
+                    let alertClass = 'status-no-plan';
+
+                    if (plannedTotalCost !== null) {
+                      const costDiff = actualTotalCost - plannedTotalCost;
+                      const marginDiff = targetMarginPercent - actualMarginPercent;
+
+                      if (actualTotalCost > plannedTotalCost || marginDiff > 5) {
+                        statusColor = '🔴';
+                        statusLabel = 'Critico';
+                        alertClass = 'status-critical';
+                      } else if (actualTotalCost > plannedTotalCost * 0.8 || (marginDiff > 0 && marginDiff <= 5)) {
+                        statusColor = '🟡';
+                        statusLabel = 'Attenzione';
+                        alertClass = 'status-warning';
+                      } else {
+                        statusColor = '🟢';
+                        statusLabel = 'A Norma';
+                        alertClass = 'status-ok';
+                      }
+                    }
+
+                    return {
+                      ...proj,
+                      optimalPlanName: optimalSim ? optimalSim.name : null,
+                      plannedTotalCost,
+                      laborCost,
+                      expensesCost,
+                      actualTotalCost,
+                      salePrice,
+                      actualMarginPercent,
+                      targetMarginPercent,
+                      statusColor,
+                      statusLabel,
+                      alertClass
+                    };
+                  });
+
                   return (
-                    <div style={{ padding: '60px', textAlign: 'center', color: 'var(--text-muted)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '15px' }} className="glass-card">
-                      <BarChart2 size={48} style={{ color: 'rgba(255,255,255,0.1)' }} />
-                      <span>Seleziona una commessa dal menu a tendina sopra per visualizzare il confronto preventivo vs consuntivo.</span>
+                    <div className="glass-card" style={{ padding: '24px' }}>
+                      <div className="card-header" style={{ borderBottom: 'none', paddingLeft: 0, paddingRight: 0, paddingTop: 0 }}>
+                        <h3 className="card-title" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <Layers size={18} style={{ color: 'var(--color-primary)' }} />
+                          Portfolio Commesse & Controllo Gestione
+                        </h3>
+                        <p style={{ margin: '5px 0 0 0', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                          Sintesi di stato economico ed allerta per tutte le commesse aziendali.
+                        </p>
+                      </div>
+
+                      <div className="custom-table-container">
+                        <table className="custom-table">
+                          <thead>
+                            <tr>
+                              <th>Commessa</th>
+                              <th style={{ textAlign: 'right' }}>Budget Target (Prezzo)</th>
+                              <th style={{ textAlign: 'right' }}>Budget Preventivo</th>
+                              <th style={{ textAlign: 'right' }}>Costo Lavoro</th>
+                              <th style={{ textAlign: 'right' }}>Spese Non-Labor</th>
+                              <th style={{ textAlign: 'right' }}>Costo Consuntivo</th>
+                              <th style={{ textAlign: 'center' }}>Margine (Target vs Reale)</th>
+                              <th style={{ textAlign: 'center' }}>Stato Allerta</th>
+                              <th style={{ width: '100px', textAlign: 'center' }}>Azioni</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {portfolioData.length === 0 ? (
+                              <tr>
+                                <td colSpan="9" style={{ textAlign: 'center', color: 'var(--text-muted)' }}>
+                                  Nessuna commessa configurata nel sistema.
+                                </td>
+                              </tr>
+                            ) : (
+                              portfolioData.map(p => (
+                                <tr key={p.id}>
+                                  <td style={{ fontWeight: '600' }}>
+                                    <div>{p.name}</div>
+                                    {p.code && <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Codice: {p.code}</div>}
+                                  </td>
+                                  <td style={{ textAlign: 'right', fontWeight: '500', color: 'var(--color-primary)' }}>
+                                    {p.salePrice.toLocaleString('it-IT', { style: 'currency', currency: 'EUR' })}
+                                  </td>
+                                  <td style={{ textAlign: 'right' }}>
+                                    {p.plannedTotalCost !== null ? (
+                                      <span>
+                                        {p.plannedTotalCost.toLocaleString('it-IT', { style: 'currency', currency: 'EUR' })}
+                                        <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>({p.optimalPlanName})</div>
+                                      </span>
+                                    ) : (
+                                      <span style={{ color: 'var(--text-muted)' }}>—</span>
+                                    )}
+                                  </td>
+                                  <td style={{ textAlign: 'right' }}>
+                                    {p.laborCost.toLocaleString('it-IT', { style: 'currency', currency: 'EUR' })}
+                                  </td>
+                                  <td style={{ textAlign: 'right' }}>
+                                    {p.expensesCost.toLocaleString('it-IT', { style: 'currency', currency: 'EUR' })}
+                                  </td>
+                                  <td style={{ textAlign: 'right', fontWeight: 'bold' }}>
+                                    {p.actualTotalCost.toLocaleString('it-IT', { style: 'currency', currency: 'EUR' })}
+                                  </td>
+                                  <td style={{ textAlign: 'center' }}>
+                                    <div style={{ fontSize: '0.85rem' }}>
+                                      Target: <strong>{p.targetMarginPercent.toFixed(1)}%</strong>
+                                    </div>
+                                    <div style={{ fontSize: '0.85rem', color: p.actualMarginPercent >= p.targetMarginPercent ? 'var(--color-success)' : 'var(--color-danger)' }}>
+                                      Reale: <strong>{p.actualMarginPercent.toFixed(1)}%</strong>
+                                    </div>
+                                  </td>
+                                  <td style={{ textAlign: 'center' }}>
+                                    <span 
+                                      className={`badge ${p.alertClass}`}
+                                      style={{
+                                        fontSize: '0.75rem',
+                                        padding: '4px 8px',
+                                        backgroundColor: p.statusColor === '🟢' ? 'rgba(16, 185, 129, 0.1)' :
+                                                         p.statusColor === '🟡' ? 'rgba(245, 158, 11, 0.1)' :
+                                                         p.statusColor === '🔴' ? 'rgba(239, 68, 68, 0.1)' : 'rgba(255, 255, 255, 0.05)',
+                                        color: p.statusColor === '🟢' ? 'var(--color-success)' :
+                                               p.statusColor === '🟡' ? 'var(--color-warning)' :
+                                               p.statusColor === '🔴' ? 'var(--color-danger)' : 'var(--text-secondary)'
+                                      }}
+                                    >
+                                      {p.statusColor} {p.statusLabel}
+                                    </span>
+                                  </td>
+                                  <td style={{ textAlign: 'center' }}>
+                                    <button 
+                                      type="button"
+                                      className="btn btn-secondary btn-sm"
+                                      onClick={() => setComparisonProjectId(p.id)}
+                                    >
+                                      Dettaglio
+                                    </button>
+                                  </td>
+                                </tr>
+                              ))
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
                     </div>
                   );
                 }
@@ -4308,18 +4649,20 @@ export default function App() {
                 const plannedMarginPercent = salePrice > 0 ? (plannedMarginEur / salePrice) * 100 : 0;
 
                 // Calculate Consuntivato (Submitted actuals) totals
-                let actualTotalCost = 0;
+                let laborCost = 0;
                 let actualHours = 0;
                 let actualResourcesCount = 0;
                 const actualResourcesMap = {};
                 projectActuals.forEach(act => {
-                  actualTotalCost += parseFloat(act.cost) || 0;
+                  laborCost += parseFloat(act.cost) || 0;
                   actualHours += parseFloat(act.hours) || 0;
                   if (!actualResourcesMap[act.userId]) {
                     actualResourcesMap[act.userId] = true;
                     actualResourcesCount++;
                   }
                 });
+                const totalNonLaborExpenses = projectExpenses.reduce((sum, exp) => sum + (parseFloat(exp.amount) || 0), 0);
+                const actualTotalCost = laborCost + totalNonLaborExpenses;
                 const actualDays = actualHours / 8;
                 const actualMarginEur = salePrice - actualTotalCost;
                 const actualMarginPercent = salePrice > 0 ? (actualMarginEur / salePrice) * 100 : 0;
@@ -4359,6 +4702,55 @@ export default function App() {
                         </div>
                       </div>
                     </div>
+
+                    {/* ALERT BANNERS */}
+                    {(() => {
+                      if (!optimalSim) return null;
+                      const budgetAlert80 = actualTotalCost > plannedTotalCost * 0.8 && actualTotalCost <= plannedTotalCost;
+                      const budgetAlert100 = actualTotalCost > plannedTotalCost;
+                      const marginDiff = (parseFloat(project.margin) || 0) - actualMarginPercent;
+                      const marginAlertWarning = marginDiff > 0 && marginDiff <= 5;
+                      const marginAlertCritical = marginDiff > 5;
+
+                      if (!budgetAlert80 && !budgetAlert100 && !marginAlertWarning && !marginAlertCritical) return null;
+
+                      return (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                          {budgetAlert100 && (
+                            <div className="glass-card" style={{ padding: '15px 20px', borderLeft: '4px solid var(--color-danger)', backgroundColor: 'rgba(239, 68, 68, 0.05)', display: 'flex', alignItems: 'center', gap: '12px' }}>
+                              <AlertTriangle size={20} style={{ color: 'var(--color-danger)' }} />
+                              <div>
+                                <strong style={{ color: '#fff' }}>Superamento Costo Critico (100%):</strong> I costi effettivi ({actualTotalCost.toLocaleString('it-IT', { style: 'currency', currency: 'EUR' })}) hanno superato il budget programmato ({plannedTotalCost.toLocaleString('it-IT', { style: 'currency', currency: 'EUR' })}).
+                              </div>
+                            </div>
+                          )}
+                          {budgetAlert80 && (
+                            <div className="glass-card" style={{ padding: '15px 20px', borderLeft: '4px solid var(--color-warning)', backgroundColor: 'rgba(245, 158, 11, 0.05)', display: 'flex', alignItems: 'center', gap: '12px' }}>
+                              <AlertTriangle size={20} style={{ color: 'var(--color-warning)' }} />
+                              <div>
+                                <strong style={{ color: '#fff' }}>Soglia Costo Superata (80%):</strong> I costi effettivi ({actualTotalCost.toLocaleString('it-IT', { style: 'currency', currency: 'EUR' })}) hanno superato l'80% del budget programmato ({plannedTotalCost.toLocaleString('it-IT', { style: 'currency', currency: 'EUR' })}).
+                              </div>
+                            </div>
+                          )}
+                          {marginAlertCritical && (
+                            <div className="glass-card" style={{ padding: '15px 20px', borderLeft: '4px solid var(--color-danger)', backgroundColor: 'rgba(239, 68, 68, 0.05)', display: 'flex', alignItems: 'center', gap: '12px' }}>
+                              <AlertTriangle size={20} style={{ color: 'var(--color-danger)' }} />
+                              <div>
+                                <strong style={{ color: '#fff' }}>Margine Critico:</strong> Il margine reale ({actualMarginPercent.toFixed(1)}%) è inferiore al target ({parseFloat(project.margin || 0).toFixed(1)}%) di oltre 5 punti percentuali (differenza: {marginDiff.toFixed(1)}%).
+                              </div>
+                            </div>
+                          )}
+                          {marginAlertWarning && (
+                            <div className="glass-card" style={{ padding: '15px 20px', borderLeft: '4px solid var(--color-warning)', backgroundColor: 'rgba(245, 158, 11, 0.05)', display: 'flex', alignItems: 'center', gap: '12px' }}>
+                              <AlertTriangle size={20} style={{ color: 'var(--color-warning)' }} />
+                              <div>
+                                <strong style={{ color: '#fff' }}>Margine Sotto Target:</strong> Il margine reale ({actualMarginPercent.toFixed(1)}%) è inferiore al target ({parseFloat(project.margin || 0).toFixed(1)}%) di {marginDiff.toFixed(1)}%.
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })()}
 
                     {!optimalSim ? (
                       <div className="glass-card" style={{ padding: '30px', borderLeft: '4px solid var(--color-warning)', display: 'flex', flexDirection: 'column', gap: '15px' }}>
@@ -4420,7 +4812,7 @@ export default function App() {
                                 {actualTotalCost.toLocaleString('it-IT', { style: 'currency', currency: 'EUR' })}
                               </div>
                               <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
-                                Costo effettivo registrato da {actualResourcesCount} risorse
+                                Lavoro: {laborCost.toLocaleString('it-IT', { style: 'currency', currency: 'EUR' })} ({actualResourcesCount} ris.) | Spese: {totalNonLaborExpenses.toLocaleString('it-IT', { style: 'currency', currency: 'EUR' })}
                               </div>
                             </div>
                             <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: '10px', display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}>
@@ -4593,6 +4985,177 @@ export default function App() {
                         </div>
                       </>
                     )}
+
+                    {/* CARD SPESE NON-LABOR */}
+                    <div className="glass-card">
+                      <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <h3 className="card-title" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <Euro size={18} style={{ color: 'var(--color-primary)' }} />
+                          Spese Non-Labor
+                        </h3>
+                        <button 
+                          type="button" 
+                          className="btn btn-primary btn-sm"
+                          onClick={() => {
+                            if (showExpenseForm) {
+                              setExpenseDate('');
+                              setExpenseCategory('Trasferta');
+                              setExpenseDescription('');
+                              setExpenseAmount('');
+                              setEditingExpenseId(null);
+                              setShowExpenseForm(false);
+                            } else {
+                              setShowExpenseForm(true);
+                            }
+                          }}
+                        >
+                          {showExpenseForm ? 'Annulla' : 'Aggiungi Spesa'}
+                        </button>
+                      </div>
+
+                      {showExpenseForm && (
+                        <div style={{ padding: '20px', borderBottom: '1px solid var(--border-color)', backgroundColor: 'rgba(0, 0, 0, 0.1)' }}>
+                          <form onSubmit={editingExpenseId ? handleUpdateExpense : handleCreateExpense}>
+                            <h4 style={{ margin: '0 0 15px 0', fontSize: '0.9rem', fontWeight: '700' }}>
+                              {editingExpenseId ? 'Modifica Spesa' : 'Nuova Spesa Non-Labor'}
+                            </h4>
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '15px', marginBottom: '15px' }}>
+                              <div className="form-group">
+                                <label className="form-label">Data</label>
+                                <input 
+                                  type="date" 
+                                  className="form-input"
+                                  value={expenseDate}
+                                  onChange={(e) => setExpenseDate(e.target.value)}
+                                  required
+                                />
+                              </div>
+                              <div className="form-group">
+                                <label className="form-label">Categoria</label>
+                                <select 
+                                  id="expense-category-select"
+                                  className="form-input"
+                                  value={expenseCategory}
+                                  onChange={(e) => setExpenseCategory(e.target.value)}
+                                  required
+                                >
+                                  <option value="Trasferta">Trasferta</option>
+                                  <option value="Software">Software</option>
+                                  <option value="Materiali">Materiali</option>
+                                  <option value="Consulenza">Consulenza</option>
+                                  <option value="Altro">Altro</option>
+                                </select>
+                              </div>
+                              <div className="form-group">
+                                <label className="form-label">Importo (€)</label>
+                                <input 
+                                  type="number" 
+                                  className="form-input"
+                                  placeholder="es. 120.00"
+                                  step="0.01"
+                                  min="0"
+                                  value={expenseAmount}
+                                  onChange={(e) => setExpenseAmount(e.target.value)}
+                                  required
+                                />
+                              </div>
+                            </div>
+                            <div className="form-group" style={{ marginBottom: '15px' }}>
+                              <label className="form-label">Descrizione / Note</label>
+                              <input 
+                                type="text" 
+                                className="form-input"
+                                placeholder="Aggiungi dettagli sulla spesa..."
+                                value={expenseDescription}
+                                onChange={(e) => setExpenseDescription(e.target.value)}
+                              />
+                            </div>
+                            <div style={{ display: 'flex', gap: '10px' }}>
+                              <button type="submit" className="btn btn-primary btn-sm">
+                                {editingExpenseId ? 'Salva Modifiche' : 'Registra Spesa'}
+                              </button>
+                              <button 
+                                type="button" 
+                                className="btn btn-secondary btn-sm"
+                                onClick={() => {
+                                  setExpenseDate('');
+                                  setExpenseCategory('Trasferta');
+                                  setExpenseDescription('');
+                                  setExpenseAmount('');
+                                  setEditingExpenseId(null);
+                                  setShowExpenseForm(false);
+                                }}
+                              >
+                                Annulla
+                              </button>
+                            </div>
+                          </form>
+                        </div>
+                      )}
+
+                      <div className="custom-table-container">
+                        <table className="custom-table">
+                          <thead>
+                            <tr>
+                              <th>Data</th>
+                              <th>Categoria</th>
+                              <th>Descrizione</th>
+                              <th style={{ textAlign: 'right' }}>Importo</th>
+                              <th style={{ width: '150px', textAlign: 'center' }}>Azioni</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {projectExpenses.length === 0 ? (
+                              <tr>
+                                <td colSpan="5" style={{ textAlign: 'center', color: 'var(--text-muted)' }}>
+                                  Nessuna spesa non-labor registrata per questa commessa.
+                                </td>
+                              </tr>
+                            ) : (
+                              projectExpenses.map(exp => (
+                                <tr key={exp.id}>
+                                  <td>{new Date(exp.date).toLocaleDateString('it-IT')}</td>
+                                  <td>
+                                    <span className="badge" style={{ fontSize: '0.75rem', backgroundColor: 'rgba(255,255,255,0.05)', color: '#fff' }}>
+                                      {exp.category}
+                                    </span>
+                                  </td>
+                                  <td>{exp.description || '—'}</td>
+                                  <td style={{ textAlign: 'right', fontWeight: 'bold' }}>
+                                    {parseFloat(exp.amount).toLocaleString('it-IT', { style: 'currency', currency: 'EUR' })}
+                                  </td>
+                                  <td style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
+                                    <button 
+                                      type="button"
+                                      className="btn btn-secondary btn-sm"
+                                      style={{ padding: '4px 8px', fontSize: '0.75rem' }}
+                                      onClick={() => {
+                                        setEditingExpenseId(exp.id);
+                                        setExpenseDate(exp.date);
+                                        setExpenseCategory(exp.category);
+                                        setExpenseDescription(exp.description || '');
+                                        setExpenseAmount(String(exp.amount));
+                                        setShowExpenseForm(true);
+                                      }}
+                                    >
+                                      Modifica
+                                    </button>
+                                    <button 
+                                      type="button"
+                                      className="btn btn-danger btn-sm"
+                                      style={{ padding: '4px 8px', fontSize: '0.75rem' }}
+                                      onClick={() => handleDeleteExpense(exp.id)}
+                                    >
+                                      Elimina
+                                    </button>
+                                  </td>
+                                </tr>
+                              ))
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
 
                   </div>
                 );
@@ -5296,6 +5859,16 @@ export default function App() {
                               >
                                 Rifiuta
                               </button>
+                              {(currentUser.role === 'Admin' || currentUser.role === 'HR') && (
+                                <button 
+                                  type="button"
+                                  className="btn btn-warning btn-sm"
+                                  style={{ padding: '6px 12px', fontSize: '0.8rem', backgroundColor: 'var(--color-warning)', borderColor: 'var(--color-warning)', color: '#1e1b4b' }}
+                                  onClick={() => handleReopenTimesheet(t.id)}
+                                >
+                                  Riapri
+                                </button>
+                              )}
                             </div>
                           </div>
 

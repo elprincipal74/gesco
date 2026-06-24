@@ -247,11 +247,58 @@ function rejectTimesheet(req, res) {
   }
 }
 
+// POST /api/timesheets/:id/reopen
+function reopenTimesheet(req, res) {
+  const { id } = req.params;
+
+  if (req.user.role !== 'Admin' && req.user.role !== 'HR') {
+    return res.status(403).json({ error: 'Solo Admin ed HR possono riaprire i rapportini.' });
+  }
+
+  try {
+    const report = db.prepare('SELECT * FROM monthly_reports WHERE id = ?').get(id);
+    if (!report) {
+      return res.status(404).json({ error: 'Rapportino non trovato.' });
+    }
+
+    if (report.status === 'Bozza') {
+      return res.status(400).json({ error: 'Il rapportino è già in stato Bozza.' });
+    }
+
+    const nowStr = new Date().toISOString();
+
+    const reopenTx = db.transaction(() => {
+      db.prepare(`
+        UPDATE monthly_reports 
+        SET status = 'Bozza', validatedBy = NULL, rejectionReason = NULL, validatedAt = NULL, updatedAt = ? 
+        WHERE id = ?
+      `).run(nowStr, id);
+
+      // Create notification for employee
+      const notifId = 'notif-' + Date.now();
+      const monthName = MONTHS_IT[report.month] || report.month;
+      const message = `Il tuo rapportino per ${monthName} ${report.year} è stato riaperto da ${req.user.name} (${req.user.role}) ed è tornato in stato Bozza per modifiche.`;
+      db.prepare(`
+        INSERT INTO notifications (id, userId, message, read, readAt, createdAt)
+        VALUES (?, ?, ?, 0, NULL, ?)
+      `).run(notifId, report.userId, message, nowStr);
+    });
+
+    reopenTx();
+
+    res.json({ message: 'Rapportino riaperto con successo e rimandato in Bozza.' });
+  } catch (err) {
+    console.error('Error reopening timesheet:', err);
+    res.status(500).json({ error: 'Errore interno del server durante la riapertura' });
+  }
+}
+
 module.exports = {
   getMyMonth,
   saveTimesheet,
   submitTimesheet,
   getPendingTimesheets,
   approveTimesheet,
-  rejectTimesheet
+  rejectTimesheet,
+  reopenTimesheet
 };

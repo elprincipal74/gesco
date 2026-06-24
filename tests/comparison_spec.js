@@ -135,7 +135,7 @@ test.describe('Dashboard Preventivo vs Consuntivo - E2E Tests', () => {
     await expect(plannedCard).toContainText(/1[.,]?200[.,]00/);
     await expect(plannedCard).toContainText(/60[.,]0%/); // Margine preventivo
 
-    const actualCard = page.locator('.glass-card', { hasText: 'Costo effettivo registrato' });
+    const actualCard = page.locator('.glass-card', { hasText: 'Consuntivo (Actual)' });
     await expect(actualCard).toContainText(/600[.,]00/);
     await expect(actualCard).toContainText(/80[.,]0%/); // Margine consuntivo (3000-600)/3000 = 80%
 
