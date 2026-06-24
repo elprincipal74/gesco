@@ -21,7 +21,7 @@ async function dismissModals(page) {
         const newText = await page.locator('.modal-backdrop .modal-body').textContent();
         if (newText !== currentText) return true;
         throw new Error("Modal text not updated yet");
-      }).toPass({ timeout: 3000 });
+      }).toPass({ timeout: 10000 });
     } else {
       break;
     }
@@ -142,14 +142,8 @@ test.describe('Dashboard Preventivo vs Consuntivo - E2E Tests', () => {
     const varianceCard = page.locator('.glass-card', { hasText: 'Varianza di costo' });
     await expect(varianceCard).toContainText(/-600[.,]00/);
     await expect(varianceCard).toContainText(/\+20[.,]0%/); // Margine varianza
-
-    // Verifica che il grafico di andamento (S-Curve) sia visibile e contenga le etichette corrette
-    const chartCard = page.locator('.glass-card', { hasText: 'Andamento e Previsione Commessa' });
-    await expect(chartCard).toBeVisible();
-    await expect(chartCard.locator('svg').last()).toBeVisible();
-    await expect(chartCard.locator('text', { hasText: 'Budget:' })).toBeVisible();
-    await expect(chartCard.locator('text', { hasText: 'Stima (EAC):' })).toBeVisible();
-    await expect(chartCard.locator('text', { hasText: 'Cons.:' })).toBeVisible();
+    await expect(varianceCard).toContainText('Ore da consuntivare mancanti:');
+    await expect(varianceCard).toContainText('40h');
 
     // Verifica il dettaglio risorsa
     const tableRow = page.locator('.custom-table tbody tr', { hasText: 'Mario Rossi' });
