@@ -526,3 +526,47 @@ Running 19 tests using 1 worker
 
   19 passed (2.5m)
 ```
+
+---
+
+## Aggiornamento: Dockerizzazione per Hosting e Rimozione Accesso Rapido (25 Giugno 2026)
+
+### Modifiche Apportate
+
+1. **Rimozione dell'Accesso Rapido (Quick Login) in Produzione**:
+   - **Frontend (`frontend/src/App.jsx`)**: La sezione "Accesso Rapido (Demo)" (con i pulsanti predefiniti per Mario Rossi, Luigi Bianchi, ecc.) è stata avvolta nel controllo condizionale `{import.meta.env.DEV && (...) }`.
+   - **Risultato**: Quando Vite compila l'applicazione per la produzione (`npm run build`), questa sezione viene completamente rimossa dal codice finale (grazie all'eliminazione di rami morti). Nello sviluppo locale e nell'ambiente di test E2E (`npm run dev`), l'accesso rapido continua ad essere visualizzato per garantire il perfetto funzionamento e la stabilità dei 19 test automatici Playwright.
+
+2. **Dockerizzazione per Hosting e Ambienti Cloud**:
+   - **Dockerfile**: Creato un `Dockerfile` multi-stage:
+     - **Stage 1 (Build)**: Compila l'applicazione frontend React con Vite producendo la cartella `frontend/dist`.
+     - **Stage 2 (Runtime)**: Installa solo le dipendenze di produzione del backend Express, copia il codice sorgente del server e importa la cartella `frontend/dist` prodotta nello Stage 1.
+   - **docker-compose.yml**: Creato un file di configurazione per semplificare l'installazione e la gestione del servizio. Definisce la porta `5000` e un volume persistente per SQLite.
+   - **.dockerignore**: Aggiunto per escludere file non necessari (come `node_modules`, test, e file di configurazione locale) riducendo le dimensioni dell'immagine Docker.
+
+3. **Predisposizione per Volumi Persistenti su Database SQLite (`src/database/db.js`)**:
+   - Modificata l'inizializzazione del database e dei relativi percorsi di backup/seeding per supportare le variabili d'ambiente:
+     - `DB_PATH`: Percorso file per il database SQLite (`database.db`). Nel container è configurato a `/app/data/database.db`, permettendo di montare un volume Docker persistente.
+     - `LEGACY_DB_PATH`: Percorso del file seed iniziale (`database.json`).
+     - `BACKUP_DB_PATH`: Percorso del file di backup (`database.json.bak`) utilizzato per la funzione di reset.
+   - Di default, se non configurate, l'applicazione ripiega sui percorsi locali preesistenti, preservando la compatibilità con l'esecuzione locale non containerizzata.
+
+---
+
+## Guida di Installazione e Avvio con Docker
+
+Per installare e avviare l'applicazione su un qualsiasi servizio di hosting con supporto Docker (es. VPS Linux, AWS, DigitalOcean, ecc.):
+
+1. **Prerequisiti**: Assicurarsi che sul server siano installati `docker` e `docker-compose`.
+2. **Download del codice**: Clonare il repository sulla macchina host:
+   ```bash
+   git clone https://github.com/elprincipal74/sistema-ferie.git
+   cd sistema-ferie
+   ```
+3. **Avvio dei Servizi**: Eseguire il comando di compilazione ed avvio in background:
+   ```bash
+   docker-compose up --build -d
+   ```
+   *Questo comando compilerà il frontend, installerà le dipendenze di produzione ed avvierà l'applicazione sulla porta `5000` dell'host.*
+4. **Persistenza Dati**: Il database SQLite viene conservato all'interno di un volume Docker denominato `gestione_commesse_data` montato in `/app/data`. Eventuali aggiornamenti o riavvii del container non comporteranno la perdita dei dati.
+
