@@ -2241,29 +2241,33 @@ export default function App() {
             </button>
           </form>
 
-          <div className="quick-login-title">Accesso Rapido (Demo)</div>
-          <div className="quick-login-grid">
-            <button className="quick-login-btn" onClick={() => handleQuickLogin('mario.rossi@azienda.it')}>
-              <span className="quick-login-name">Mario Rossi</span>
-              <span className="quick-login-role">Dipendente</span>
-            </button>
-            <button className="quick-login-btn" onClick={() => handleQuickLogin('luigi.bianchi@azienda.it')}>
-              <span className="quick-login-name">Luigi Bianchi</span>
-              <span className="quick-login-role">Dipendente</span>
-            </button>
-            <button className="quick-login-btn" onClick={() => handleQuickLogin('giuseppe.verdi@azienda.it')}>
-              <span className="quick-login-name">Giuseppe Verdi</span>
-              <span className="quick-login-role">Team Leader</span>
-            </button>
-            <button className="quick-login-btn" onClick={() => handleQuickLogin('admin@azienda.it')}>
-              <span className="quick-login-name">Admin User</span>
-              <span className="quick-login-role">Amministratore</span>
-            </button>
-            <button className="quick-login-btn" onClick={() => handleQuickLogin('hr@azienda.it')}>
-              <span className="quick-login-name">HR User</span>
-              <span className="quick-login-role">Risorse Umane</span>
-            </button>
-          </div>
+          {import.meta.env.DEV && (
+            <>
+              <div className="quick-login-title">Accesso Rapido (Demo)</div>
+              <div className="quick-login-grid">
+                <button className="quick-login-btn" onClick={() => handleQuickLogin('mario.rossi@azienda.it')}>
+                  <span className="quick-login-name">Mario Rossi</span>
+                  <span className="quick-login-role">Dipendente</span>
+                </button>
+                <button className="quick-login-btn" onClick={() => handleQuickLogin('luigi.bianchi@azienda.it')}>
+                  <span className="quick-login-name">Luigi Bianchi</span>
+                  <span className="quick-login-role">Dipendente</span>
+                </button>
+                <button className="quick-login-btn" onClick={() => handleQuickLogin('giuseppe.verdi@azienda.it')}>
+                  <span className="quick-login-name">Giuseppe Verdi</span>
+                  <span className="quick-login-role">Team Leader</span>
+                </button>
+                <button className="quick-login-btn" onClick={() => handleQuickLogin('admin@azienda.it')}>
+                  <span className="quick-login-name">Admin User</span>
+                  <span className="quick-login-role">Amministratore</span>
+                </button>
+                <button className="quick-login-btn" onClick={() => handleQuickLogin('hr@azienda.it')}>
+                  <span className="quick-login-name">HR User</span>
+                  <span className="quick-login-role">Risorse Umane</span>
+                </button>
+              </div>
+            </>
+          )}
         </div>
       </div>
     );

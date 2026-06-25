@@ -1,0 +1,14 @@
+node_modules
+frontend/node_modules
+frontend/dist
+database.db
+database.db-shm
+database.db-wal
+.git
+.gitignore
+.github
+tests
+test-results
+playwright.config.js
+.agents
+*.log

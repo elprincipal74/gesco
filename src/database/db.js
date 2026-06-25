@@ -4,8 +4,8 @@ const path = require('path');
 const fs = require('fs');
 const bcrypt = require('bcryptjs');
 
-const dbPath = path.join(__dirname, '..', '..', 'database.db');
-const legacyDbPath = path.join(__dirname, '..', '..', 'database.json');
+const dbPath = process.env.DB_PATH || path.join(__dirname, '..', '..', 'database.db');
+const legacyDbPath = process.env.LEGACY_DB_PATH || path.join(__dirname, '..', '..', 'database.json');
 
 // Initialize SQLite database
 const db = new Database(dbPath);
@@ -360,8 +360,8 @@ if (!tableExists) {
 }
 
 function resetDatabase() {
-  const backupPath = path.join(__dirname, '..', '..', 'database.json.bak');
-  const backupPathAlternative = path.join(__dirname, '..', '..', 'database.json');
+  const backupPath = process.env.BACKUP_DB_PATH || path.join(__dirname, '..', '..', 'database.json.bak');
+  const backupPathAlternative = process.env.LEGACY_DB_PATH || path.join(__dirname, '..', '..', 'database.json');
   
   let rawData = '';
   if (fs.existsSync(backupPath)) {
