@@ -280,12 +280,17 @@ Then('quando accedo come dipendente {string}', async (email) => {
 Then('vede lo stato {string} con la dicitura {string}', async (status, text) => {
   const row = page.locator('.custom-table tbody tr').first();
   await expect(row.locator('.badge')).toContainText(status);
-  await expect(row).toContainText(text);
+  if (status === 'Rifiutata') {
+    await expect(row.locator('.badge-rejected')).toHaveAttribute('title', new RegExp(text));
+  } else {
+    await expect(row).toContainText(text);
+  }
 });
 
 Then('vede la nota di rifiuto {string}', async (reasonText) => {
   const row = page.locator('.custom-table tbody tr').first();
-  await expect(row.locator('.rejection-reason-box')).toContainText(reasonText);
+  const cleanReason = reasonText.replace(/^Motivo:\s*\"?/, '').replace(/\"?$/, '');
+  await expect(row.locator('.badge-rejected')).toHaveAttribute('title', `Motivo del rifiuto: "${cleanReason}"`);
 });
 
 Then('le impostazioni vengono salvate con successo', async () => {

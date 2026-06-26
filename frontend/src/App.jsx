@@ -2975,21 +2975,23 @@ export default function App() {
                                 </span>
                               </td>
                               <td>{getWorkingDaysCount(req.startDate, req.endDate)} gg</td>
-                              <td>
-                                <span className={`badge ${
-                                  req.status === 'In attesa di approvazione' ? 'badge-pending' : 
-                                  req.status === 'Approvata' ? 'badge-approved' : 'badge-rejected'
-                                }`}>
+                              <td
+                                title={req.status === 'Rifiutata' ? `${req.rejectionReason ? `Motivo del rifiuto: "${req.rejectionReason}"` : 'Richiesta Rifiutata'}${req.approvedBy ? ` (Rifiutata da: ${req.approvedBy})` : ''}` : undefined}
+                                style={{ cursor: req.status === 'Rifiutata' ? 'help' : 'default' }}
+                              >
+                                <span 
+                                  className={`badge ${
+                                    req.status === 'In attesa di approvazione' ? 'badge-pending' : 
+                                    req.status === 'Approvata' ? 'badge-approved' : 'badge-rejected'
+                                  }`}
+                                  title={req.status === 'Rifiutata' ? `${req.rejectionReason ? `Motivo del rifiuto: "${req.rejectionReason}"` : 'Richiesta Rifiutata'}${req.approvedBy ? ` (Rifiutata da: ${req.approvedBy})` : ''}` : undefined}
+                                  style={{ cursor: req.status === 'Rifiutata' ? 'help' : 'default' }}
+                                >
                                   {req.status}
                                 </span>
-                                {req.approvedBy && (
+                                {req.approvedBy && req.status === 'Approvata' && (
                                   <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '4px', fontStyle: 'italic' }}>
-                                    {req.status === 'Approvata' ? 'Approvata da: ' : 'Rifiutata da: '}{req.approvedBy}
-                                  </div>
-                                )}
-                                {req.status === 'Rifiutata' && req.rejectionReason && (
-                                  <div className="rejection-reason-box" style={{ marginTop: '4px' }}>
-                                    Motivo: "{req.rejectionReason}"
+                                    Approvata da: {req.approvedBy}
                                   </div>
                                 )}
                               </td>

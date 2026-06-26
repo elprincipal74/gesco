@@ -138,10 +138,9 @@ test.describe('Sistema Gestione Ferie - E2E Tests', () => {
     await page.click('.profile-dropdown-item.logout');
     await page.locator('.quick-login-btn', { hasText: 'Mario Rossi' }).click();
 
-    // Verifica diciture di rifiuto e motivo
+    // Verifica diciture di rifiuto e motivo (ora spostati entrambi su hover/tooltip)
     const targetCellVerify = page.locator('.custom-table tbody tr').first();
-    await expect(targetCellVerify).toContainText('Rifiutata da: Admin User (Admin)');
-    await expect(targetCellVerify.locator('.rejection-reason-box')).toContainText('Motivo: "Rifiutata per sovrapposizione turni"');
+    await expect(targetCellVerify.locator('.badge-rejected')).toHaveAttribute('title', 'Motivo del rifiuto: "Rifiutata per sovrapposizione turni" (Rifiutata da: Admin User (Admin))');
   });
 
   test('5. Configurazione dei limiti globali e convalida regole d\'uso', async ({ page }) => {

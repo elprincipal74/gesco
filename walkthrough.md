@@ -587,4 +587,18 @@ Per installare e avviare l'applicazione su un qualsiasi servizio di hosting con 
 
 ---
 
+## Aggiornamento: Spostamento di Motivo Rifiuto e Autore del Rifiuto su Hover Tooltip (26 Giugno 2026)
 
+### Modifiche Apportate
+
+1. **Frontend (`frontend/src/App.jsx`)**:
+   - Rimosso il blocco testuale sotto lo stato della richiesta nel riepilogo ferie (`.rejection-reason-box`) che mostrava il motivo del rifiuto direttamente in griglia.
+   - Rimosso il testo `"Rifiutata da: [Nome]"` che veniva mostrato direttamente sotto lo stato `"Rifiutata"` nella griglia (le richieste `"Approvata"` continuano a mostrare `"Approvata da: [Nome]"` in griglia per chiarezza).
+   - Accorpate entrambe le informazioni nel tooltip HTML (`title` attribute) associato alla cella dello stato (`<td>`) e al relativo badge (`.badge-rejected`).
+   - Il tooltip ora ha la struttura: `Motivo del rifiuto: "[Motivazione]" (Rifiutata da: [Nome])`.
+   - Impostato il cursore del mouse a `help` su tutta la cella per rendere immediato il passaggio del mouse.
+
+2. **Aggiornamento Test Automatici E2E & BDD**:
+   - **Playwright (`tests/playwright_spec.js`)**: Aggiornato il test di rifiuto dell'Admin per controllare che il `title` contenga sia il motivo del rifiuto sia l'autore del rifiuto nel formato specificato, e rimossa l'asserzione sul testo testuale nella riga.
+   - **Cucumber (`tests/step_definitions/steps.js`)**: Aggiornato il passo di validazione `Then vede lo stato {string} con la dicitura {string}` per controllare l'autore del rifiuto all'interno del tooltip tramite espressione regolare se lo stato è `"Rifiutata"`.
+   - **Risultato**: Tutti i 19 test della suite automatizzata passano con successo in ambiente E2E.
