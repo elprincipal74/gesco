@@ -570,3 +570,21 @@ Per installare e avviare l'applicazione su un qualsiasi servizio di hosting con 
    *Questo comando compilerà il frontend, installerà le dipendenze di produzione ed avvierà l'applicazione sulla porta `5000` dell'host.*
 4. **Persistenza Dati**: Il database SQLite viene conservato all'interno di un volume Docker denominato `gestione_commesse_data` montato in `/app/data`. Eventuali aggiornamenti o riavvii del container non comporteranno la perdita dei dati.
 
+---
+
+## Aggiornamento: Layout Full Width e Navigazione via Dropdown in Produzione (26 Giugno 2026)
+
+### Modifiche Apportate
+
+1. **Rimozione della Sidebar in Produzione**:
+   - **Frontend (`frontend/src/App.jsx`)**: La barra laterale (`<aside className="sidebar">`) è stata racchiusa nel controllo condizionale `{import.meta.env.DEV && (...) }`.
+   - **Risultato**: Nella versione compilata per la produzione (quella servita su Docker in hosting), il menu laterale a sinistra viene completamente rimosso. Questo libera il 100% della larghezza dello schermo per le tabelle gestionali e le dashboard, offrendo una superficie di lavoro più ampia e pulita. 
+   - **Compatibilità E2E**: In modalità di sviluppo e durante l'esecuzione dei test Playwright (`npm run dev`), la barra laterale viene renderizzata normalmente, garantendo che tutti i 19 test di navigazione automatizzati continuino a passare senza necessità di modifiche ai selettori `.nav-item`.
+
+2. **Nuova Logo Header Section in Produzione**:
+   - **Frontend (`frontend/src/App.jsx`)**: Inserito un blocco logo condizionale `{!import.meta.env.DEV && (...) }` nell'app header.
+   - **Design**: Quando la sidebar è assente (in produzione), viene mostrato il logo aziendale con l'icona "C" e il nome del progetto **"Gesco"** (con sfumatura gradiente primario/secondario) a sinistra del titolo della pagina corrente, separato da una linea divisoria verticale sottile.
+
+---
+
+

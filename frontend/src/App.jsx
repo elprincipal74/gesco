@@ -2289,7 +2289,8 @@ export default function App() {
       </div>
 
       {/* Sidebar Navigation */}
-      <aside className="sidebar">
+      {import.meta.env.DEV && (
+        <aside className="sidebar">
         <div className="logo-section">
           <div className="logo-icon">C</div>
           <div className="logo-text">Gestione Commesse</div>
@@ -2423,23 +2424,35 @@ export default function App() {
           </div>
         )}
       </aside>
+      )}
 
       {/* Main Container */}
       <main className="main-area">
         {/* Header */}
         <header className="app-header">
-          <h1 className="header-title">
-            {activeTab === 'dashboard' && 'Area Personale Dipendente'}
-            {activeTab === 'approvals' && 'Pannello Approvazioni Richieste'}
-            {activeTab === 'reports' && 'REPORTISTICA'}
-            {activeTab === 'projects' && 'Gestione Commesse / Progettualità'}
-            {activeTab === 'users' && 'Anagrafica Collaboratori'}
-            {activeTab === 'absences' && 'Gestione Tipologie Assenze'}
-            {activeTab === 'simulation' && 'Simulatore Margine Commessa'}
-            {activeTab === 'comparison' && 'Preventivo vs Consuntivo Commesse'}
-            {activeTab === 'profile' && 'I Miei Dati Personali'}
-            {activeTab === 'communications' && 'Comunicazioni e Avvisi'}
-          </h1>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
+            {!import.meta.env.DEV && (
+              <>
+                <div className="logo-section" style={{ marginBottom: 0, paddingBottom: 0 }}>
+                  <div className="logo-icon">C</div>
+                  <div className="logo-text" style={{ fontSize: '1.25rem', fontWeight: '800', background: 'linear-gradient(135deg, var(--color-primary), var(--color-secondary))', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>Gesco</div>
+                </div>
+                <div style={{ borderLeft: '1px solid var(--border-color)', height: '24px', margin: '0 10px' }}></div>
+              </>
+            )}
+            <h1 className="header-title" style={{ margin: 0 }}>
+              {activeTab === 'dashboard' && 'Area Personale Dipendente'}
+              {activeTab === 'approvals' && 'Pannello Approvazioni Richieste'}
+              {activeTab === 'reports' && 'REPORTISTICA'}
+              {activeTab === 'projects' && 'Gestione Commesse / Progettualità'}
+              {activeTab === 'users' && 'Anagrafica Collaboratori'}
+              {activeTab === 'absences' && 'Gestione Tipologie Assenze'}
+              {activeTab === 'simulation' && 'Simulatore Margine Commessa'}
+              {activeTab === 'comparison' && 'Preventivo vs Consuntivo Commesse'}
+              {activeTab === 'profile' && 'I Miei Dati Personali'}
+              {activeTab === 'communications' && 'Comunicazioni e Avvisi'}
+            </h1>
+          </div>
           
           <div className="header-actions">
             {/* Notification Bell */}
