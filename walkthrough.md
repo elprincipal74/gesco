@@ -560,8 +560,8 @@ Per installare e avviare l'applicazione su un qualsiasi servizio di hosting con 
 1. **Prerequisiti**: Assicurarsi che sul server siano installati `docker` e `docker-compose`.
 2. **Download del codice**: Clonare il repository sulla macchina host:
    ```bash
-   git clone https://github.com/elprincipal74/sistema-ferie.git
-   cd sistema-ferie
+   git clone https://github.com/elprincipal74/gesco.git
+   cd gesco
    ```
 3. **Avvio dei Servizi**: Eseguire il comando di compilazione ed avvio in background:
    ```bash

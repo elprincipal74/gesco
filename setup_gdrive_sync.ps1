@@ -60,7 +60,7 @@ if (Test-Path $localNodeModules) {
 }
 
 # 3. Crea la cartella locale per le dipendenze esterne a Google Drive
-$localDependencyPath = "C:\node_dependencies\sistema-ferie"
+$localDependencyPath = "C:\node_dependencies\gesco"
 if (-not (Test-Path $localDependencyPath)) {
     Write-Host "Creazione cartella per dipendenze locali in $localDependencyPath..." -ForegroundColor Gray
     New-Item -ItemType Directory -Path $localDependencyPath -Force | Out-Null
